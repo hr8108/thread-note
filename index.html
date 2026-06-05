@@ -1,558 +1,1408 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>네이버 블로그 쿠팡파트너스 수집기</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>스레드 노트</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a1a2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="스레드노트">
+<!-- Google API -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js" async defer></script>
 <style>
-  :root {
-    --bg:       #0f0f13;
-    --surface:  #1a1a24;
-    --border:   #2a2a3a;
-    --accent:   #6c63ff;
-    --accent2:  #ff6584;
-    --green:    #4ade80;
-    --yellow:   #facc15;
-    --text:     #e2e2f0;
-    --muted:    #7070a0;
-    --radius:   12px;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    font-size: 14px;
-    min-height: 100vh;
-  }
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 
-  /* ── 헤더 ── */
-  header {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    border-bottom: 1px solid var(--border);
-    padding: 18px 28px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  header h1 { font-size: 20px; font-weight: 700; }
-  header .badge {
-    background: var(--accent);
-    color: #fff;
-    font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 20px;
-    font-weight: 600;
-  }
+:root{
+  --bg:#0f0f1a;--surface:#181828;--card:#20203a;--border:#2e2e50;
+  --text:#f0eeff;--sub:#7878aa;
+  --a1:#c084fc;--a2:#9333ea;--a3:#7e22ce;
+  --grad:linear-gradient(135deg,var(--a1),var(--a2));
+  --grad2:linear-gradient(135deg,#f0abfc,var(--a1));
+  --shadow:0 4px 20px rgba(0,0,0,.35);
+  --card-shadow:0 2px 14px rgba(0,0,0,.3);
+  --input-bg:var(--card);
+  --red:#f87171;--yellow:#fbbf24;--green:#34d399;
+}
 
-  /* ── 레이아웃 ── */
-  .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
-  .grid { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
+/* 베이비핑크 */
+body.theme-pink{
+  --bg:#fff0f6;--surface:#fff;--card:#fff5f9;--border:#ffd6e8;
+  --text:#5a1a35;--sub:#d4789a;
+  --a1:#f9a8d4;--a2:#ec4899;--a3:#be185d;
+  --grad:linear-gradient(135deg,#fbcfe8,#f472b6);
+  --grad2:linear-gradient(135deg,#fce7f3,#fbcfe8);
+  --shadow:0 4px 20px rgba(236,72,153,.18);
+  --card-shadow:0 2px 16px rgba(249,168,212,.22);
+  --input-bg:#fff;
+}
+/* 밝은민트 */
+body.theme-mint{
+  --bg:#f0fdfb;--surface:#fff;--card:#f5fffe;--border:#b2f0e8;
+  --text:#0d4a3a;--sub:#5cbcaa;
+  --a1:#5eead4;--a2:#14b8a6;--a3:#0f766e;
+  --grad:linear-gradient(135deg,#99f6e4,#2dd4bf);
+  --grad2:linear-gradient(135deg,#ccfbf1,#a7f3d0);
+  --shadow:0 4px 20px rgba(20,184,166,.15);
+  --card-shadow:0 2px 16px rgba(94,234,212,.2);
+  --input-bg:#fff;
+}
+/* 화이트 */
+body.theme-white{
+  --bg:#f7f7fc;--surface:#fff;--card:#fff;--border:#e8e4f8;
+  --text:#1a1535;--sub:#9090bb;
+  --a1:#a78bfa;--a2:#7c3aed;--a3:#5b21b6;
+  --grad:linear-gradient(135deg,#c4b5fd,#8b5cf6);
+  --grad2:linear-gradient(135deg,#ede9fe,#ddd6fe);
+  --shadow:0 4px 20px rgba(124,58,237,.12);
+  --card-shadow:0 2px 16px rgba(167,139,250,.15);
+  --input-bg:#fff;
+}
+/* 블랙 */
+body.theme-black{
+  --bg:#000;--surface:#0d0d0d;--card:#141414;--border:#242424;
+  --text:#eee;--sub:#555;
+  --a1:#c084fc;--a2:#9333ea;--a3:#7e22ce;
+  --grad:linear-gradient(135deg,#c084fc,#9333ea);
+  --grad2:linear-gradient(135deg,#3b1060,#1e0536);
+  --shadow:0 4px 20px rgba(0,0,0,.6);
+  --card-shadow:0 2px 14px rgba(0,0,0,.5);
+  --input-bg:#1a1a1a;
+}
+/* 로즈 */
+body.theme-rose{
+  --bg:#fff1f2;--surface:#fff;--card:#fff5f5;--border:#fecdd3;
+  --text:#4c0519;--sub:#f87171;
+  --a1:#fda4af;--a2:#f43f5e;--a3:#be123c;
+  --grad:linear-gradient(135deg,#fecdd3,#fb7185);
+  --grad2:linear-gradient(135deg,#fff1f2,#fecdd3);
+  --shadow:0 4px 20px rgba(244,63,94,.15);
+  --card-shadow:0 2px 16px rgba(253,164,175,.2);
+  --input-bg:#fff;
+}
+/* 네이비 */
+body.theme-navy{
+  --bg:#050a18;--surface:#0c1428;--card:#111d38;--border:#1e2e54;
+  --text:#e8eeff;--sub:#4a6aaa;
+  --a1:#93c5fd;--a2:#3b82f6;--a3:#1d4ed8;
+  --grad:linear-gradient(135deg,#93c5fd,#3b82f6);
+  --grad2:linear-gradient(135deg,#1e3a6e,#0c1a3a);
+  --shadow:0 4px 20px rgba(59,130,246,.2);
+  --card-shadow:0 2px 14px rgba(59,130,246,.15);
+  --input-bg:#111d38;
+}
 
-  /* ── 카드 ── */
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 20px;
-  }
-  .card h2 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 16px; }
+html,body{
+  height:100%;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Noto Sans KR','Segoe UI',sans-serif;
+  overflow:hidden;transition:background .35s,color .25s;
+}
 
-  /* ── 폼 요소 ── */
-  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; margin-top: 14px; }
-  label:first-of-type { margin-top: 0; }
-  input[type="text"], input[type="number"], input[type="password"] {
-    width: 100%;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    padding: 8px 12px;
-    font-size: 13px;
-    outline: none;
-    transition: border-color .2s;
-  }
-  input:focus { border-color: var(--accent); }
+/* ══ 레이아웃 ══ */
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+#topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;height:60px;
+  background:var(--surface);border-bottom:1.5px solid var(--border);
+  flex-shrink:0;z-index:10;
+}
+#topbar-title{
+  font-size:20px;font-weight:900;letter-spacing:-.8px;
+  background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+#topbar-theme-btn{
+  display:flex;align-items:center;gap:5px;padding:7px 14px;
+  border-radius:30px;border:1.5px solid var(--border);
+  background:var(--card);color:var(--sub);font-size:13px;font-weight:600;cursor:pointer;
+}
 
-  .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+#content{flex:1;overflow-y:auto;padding-bottom:90px}
 
-  /* ── 버튼 ── */
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 10px 20px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    border: none;
-    transition: opacity .15s, transform .1s;
-    width: 100%;
-    justify-content: center;
-    margin-top: 18px;
-  }
-  .btn:active { transform: scale(.97); }
-  .btn-primary { background: var(--accent); color: #fff; }
-  .btn-danger  { background: #ef4444; color: #fff; }
-  .btn-dl      { background: #059669; color: #fff; margin-top: 12px; }
-  .btn:disabled { opacity: .45; cursor: not-allowed; }
+#navbar{
+  display:flex;position:fixed;bottom:0;left:0;right:0;height:64px;
+  background:var(--surface);border-top:1.5px solid var(--border);z-index:100;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.nav-btn{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;border:none;background:none;color:var(--sub);
+  font-size:10px;font-weight:600;cursor:pointer;transition:all .22s;position:relative;
+}
+.nav-icon{font-size:22px;line-height:1;transition:transform .22s;display:block}
+.nav-btn.active .nav-icon{transform:scale(1.18)}
+.nav-btn.active{color:var(--a2)}
+.nav-btn.active::after{
+  content:'';position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);
+  width:28px;height:3px;background:var(--grad);border-radius:3px 3px 0 0;
+}
 
-  /* ── 오른쪽 패널 ── */
-  .right-panel { display: flex; flex-direction: column; gap: 20px; }
+/* ══ FAB ══ */
+#fab{
+  position:fixed;
+  bottom:80px;
+  right:18px;
+  width:58px;height:58px;
+  border-radius:50%;
+  background:var(--grad);
+  border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:var(--shadow);
+  z-index:200;
+  font-size:28px;
+  line-height:1;
+  transition:transform .2s;
+}
+#fab:active{transform:scale(.88)}
 
-  /* ── 진행 로그 ── */
-  #log-box {
-    background: #0a0a10;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 16px;
-    height: 220px;
-    overflow-y: auto;
-    font-family: 'Consolas', monospace;
-    font-size: 12px;
-    line-height: 1.7;
-    color: #a0a0c0;
-  }
-  #log-box .ok   { color: var(--green); }
-  #log-box .warn { color: var(--yellow); }
-  #log-box .err  { color: var(--accent2); }
+/* ══ 공통 ══ */
+.screen{display:none;padding:16px}
+.screen.active{display:block}
 
-  /* ── 상태 배지 ── */
-  #status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 4px 12px;
-    border-radius: 20px;
-    background: var(--border);
-    color: var(--muted);
-    margin-bottom: 10px;
-  }
-  #status-badge.running { background: #1a3a1a; color: var(--green); }
-  #status-badge.done    { background: #1a1a3a; color: var(--accent); }
-  #status-badge.error   { background: #3a1a1a; color: var(--accent2); }
-  .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-  .dot.pulse { animation: pulse 1s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:10px 20px;border-radius:50px;border:none;cursor:pointer;
+  font-size:14px;font-weight:700;transition:all .18s;
+}
+.btn-primary{background:var(--grad);color:#fff;box-shadow:var(--shadow)}
+.btn-primary:active{opacity:.82;transform:scale(.96)}
+.btn-ghost{background:var(--card);color:var(--text);border:1.5px solid var(--border)}
+.btn-ghost:active{opacity:.72}
+.btn-danger{background:rgba(248,113,113,.1);color:var(--red);border:1.5px solid rgba(248,113,113,.22)}
+.btn-sm{padding:7px 14px;font-size:12px}
 
-  /* ── TOP 10 카드 ── */
-  #top10 { display: flex; flex-direction: column; gap: 12px; }
-  .post-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 16px;
-    display: grid;
-    grid-template-columns: 42px 1fr;
-    gap: 12px;
-    transition: border-color .2s;
-  }
-  .post-card:hover { border-color: var(--accent); }
-  .rank-badge {
-    width: 42px; height: 42px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    display: flex; align-items: center; justify-content: center;
-    font-size: 17px; font-weight: 800; color: #fff;
-    flex-shrink: 0;
-  }
-  .rank-badge.gold   { background: linear-gradient(135deg,#f59e0b,#d97706); }
-  .rank-badge.silver { background: linear-gradient(135deg,#9ca3af,#6b7280); }
-  .rank-badge.bronze { background: linear-gradient(135deg,#b45309,#92400e); }
+input,textarea,select{
+  width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:14px;
+  background:var(--input-bg);color:var(--text);font-size:15px;outline:none;
+  transition:border .2s,box-shadow .2s;font-family:inherit;
+}
+input:focus,textarea:focus,select:focus{
+  border-color:var(--a2);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--a1) 18%,transparent);
+}
+textarea{resize:none;line-height:1.7}
+select option{background:var(--surface)}
+label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weight:700;letter-spacing:.3px}
 
-  .post-info h3 { font-size: 14px; font-weight: 700; margin-bottom: 5px; }
-  .post-meta {
-    display: flex; flex-wrap: wrap; gap: 8px;
-    font-size: 11px; color: var(--muted); margin-bottom: 8px;
-  }
-  .post-meta span { display: flex; align-items: center; gap: 3px; }
-  .post-links a {
-    display: inline-block;
-    background: #0f1a0f;
-    color: var(--green);
-    border: 1px solid #1a3a1a;
-    border-radius: 6px;
-    padding: 3px 10px;
-    font-size: 11px;
-    text-decoration: none;
-    margin-right: 6px;
-    margin-bottom: 4px;
-  }
-  .post-links a:hover { background: #1a3a1a; }
-  .post-preview {
-    font-size: 12px;
-    color: var(--muted);
-    margin-top: 8px;
-    line-height: 1.6;
-    max-height: 60px;
-    overflow: hidden;
-    white-space: pre-wrap;
-  }
-  .expand-btn {
-    font-size: 11px;
-    color: var(--accent);
-    cursor: pointer;
-    background: none;
-    border: none;
-    padding: 0;
-    margin-top: 4px;
-  }
-  .threads-link {
-    font-size: 11px;
-    color: var(--muted);
-    text-decoration: none;
-    margin-top: 6px;
-    display: inline-block;
-  }
-  .threads-link:hover { color: var(--text); }
+/* ══ 날짜검색 ══ */
+.date-box{
+  background:var(--card);border-radius:20px;border:1.5px solid var(--border);
+  padding:16px;margin-bottom:14px;box-shadow:var(--card-shadow);
+}
+.date-box-title{font-size:14px;font-weight:800;margin-bottom:12px}
+.date-input-row{display:flex;align-items:center;gap:8px}
+.date-input-row input[type=number]{width:70px;text-align:center;padding:10px 6px;flex-shrink:0}
+.date-input-row select{flex:1}
+.date-presets{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.preset-btn{
+  padding:6px 12px;border-radius:30px;border:1.5px solid var(--border);
+  background:var(--surface);color:var(--sub);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;
+}
+.preset-btn.active{background:var(--grad);color:#fff;border-color:transparent}
 
-  /* ── 전체 테이블 ── */
-  #all-table-wrap { overflow-x: auto; }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-  }
-  th {
-    background: #12121c;
-    color: var(--muted);
-    padding: 10px 12px;
-    text-align: left;
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-    position: sticky;
-    top: 0;
-  }
-  td {
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
-    max-width: 280px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    vertical-align: middle;
-  }
-  tr:hover td { background: #14141e; }
-  td a { color: var(--accent); text-decoration: none; }
-  td a:hover { text-decoration: underline; }
-  .tbl-score { color: var(--yellow); font-weight: 700; }
+/* ══ 정렬 ══ */
+.sort-row{display:flex;gap:8px;margin-bottom:16px}
+.sort-chip{
+  flex:1;text-align:center;padding:9px;border-radius:16px;border:1.5px solid var(--border);
+  background:var(--card);color:var(--sub);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;
+}
+.sort-chip.active{background:var(--grad);color:#fff;border-color:transparent}
 
-  /* ── 빈 상태 ── */
-  .empty {
-    text-align: center;
-    padding: 60px 20px;
-    color: var(--muted);
-  }
-  .empty .emoji { font-size: 40px; margin-bottom: 12px; }
-  .empty p { font-size: 14px; }
+/* ══ 플랫폼 필터 ══ */
+.plat-filter-row{display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none}
+.plat-filter-row::-webkit-scrollbar{display:none}
+.pchip{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:7px 14px;border-radius:30px;border:1.5px solid var(--border);
+  background:var(--card);color:var(--sub);font-size:13px;font-weight:600;
+  white-space:nowrap;cursor:pointer;transition:all .2s;flex-shrink:0;
+}
+.pchip.active{background:var(--grad);color:#fff;border-color:transparent}
 
-  /* ── 탭 ── */
-  .tabs { display: flex; gap: 0; margin-bottom: 16px; }
-  .tab {
-    padding: 9px 20px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--muted);
-    transition: all .15s;
-  }
-  .tab:first-child { border-radius: 8px 0 0 8px; }
-  .tab:last-child  { border-radius: 0 8px 8px 0; border-left: none; }
-  .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+/* ══ 재게시 배지 ══ */
+.repost-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;
+}
+.repost-ready{background:rgba(34,197,94,.15);color:#16a34a;border:1.5px solid rgba(34,197,94,.3)}
+.repost-soon{background:rgba(251,191,36,.13);color:#d97706;border:1.5px solid rgba(251,191,36,.3)}
+.repost-wait{background:rgba(148,163,184,.1);color:var(--sub);border:1.5px solid var(--border)}
 
-  .tab-content { display: none; }
-  .tab-content.active { display: block; }
+/* ══ 재게시 히스토리 ══ */
+.repost-box{
+  background:color-mix(in srgb,var(--green) 8%,transparent);
+  border:1.5px solid color-mix(in srgb,var(--green) 25%,transparent);
+  border-radius:18px;padding:15px;margin-top:10px;
+}
+.repost-box-title{font-size:12px;color:#16a34a;font-weight:800;letter-spacing:.4px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.repost-log{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;max-height:160px;overflow-y:auto}
+.repost-log-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:7px 11px;background:rgba(255,255,255,.06);border-radius:10px;font-size:13px;
+}
+.repost-log-item .rdate{font-weight:700;color:var(--text)}
+.repost-log-item .rdel{background:none;border:none;color:var(--red);font-size:16px;cursor:pointer;padding:0 2px}
+.repost-next{
+  padding:10px 14px;border-radius:12px;font-size:13px;font-weight:600;
+  background:rgba(255,255,255,.06);text-align:center;color:var(--sub);margin-top:4px;
+}
+.repost-interval-row{display:flex;align-items:center;gap:8px}
+.repost-interval-row input{width:70px;text-align:center;padding:10px 6px}
+.repost-interval-row span{font-size:14px;color:var(--sub)}
 
-  @media(max-width:768px) {
-    .grid { grid-template-columns: 1fr; }
-  }
+/* ══ 카드 ══ */
+.card{
+  background:var(--card);border-radius:20px;border:1.5px solid var(--border);
+  margin-bottom:14px;overflow:hidden;cursor:pointer;
+  transition:transform .15s,border-color .15s;box-shadow:var(--card-shadow);
+}
+.card:active{transform:scale(.975);border-color:var(--a1)}
+.card-images{display:grid;gap:2px}
+.card-images.n1 .mi{height:220px}
+.card-images.n2{grid-template-columns:1fr 1fr}
+.card-images.n2 .mi{height:150px}
+.card-images.n3{grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr}
+.card-images.n3 .mi:first-child{grid-row:1/3;height:200px}
+.card-images.n3 .mi:not(:first-child){height:99px}
+.card-images.n4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+.card-images.n4 .mi{height:130px}
+.mi{overflow:hidden;background:var(--border)}
+.mi img,.mi video{width:100%;height:100%;object-fit:cover;display:block}
+.more-badge{
+  position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.62);
+  color:#fff;font-size:12px;font-weight:700;padding:4px 9px;border-radius:10px;
+}
+.card-body{padding:14px 16px 12px}
+.card-top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.plat-badge{
+  width:34px;height:34px;border-radius:12px;background:var(--grad2);
+  display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;
+  border:1.5px solid var(--border);
+}
+.card-info{flex:1;min-width:0}
+.card-source{font-size:11px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-datelabel{font-size:11px;color:var(--sub);margin-top:1px}
+.card-preview{
+  font-size:14px;line-height:1.65;color:var(--text);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+  margin-bottom:10px;word-break:break-all;
+}
+.card-footer{
+  display:flex;align-items:center;gap:7px;padding-top:9px;
+  border-top:1.5px solid var(--border);flex-wrap:wrap;
+}
+.stat{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--sub);font-weight:500}
+.cat-tag{
+  margin-left:auto;padding:4px 11px;border-radius:30px;font-size:11px;font-weight:700;
+  background:color-mix(in srgb,var(--a1) 18%,transparent);
+  color:var(--a2);border:1.5px solid color-mix(in srgb,var(--a1) 30%,transparent);
+}
+.rank-1{background:rgba(251,191,36,.15);color:#d97706;border:1.5px solid rgba(251,191,36,.35);border-radius:30px;padding:3px 9px;font-size:11px;font-weight:700}
+.rank-2{background:rgba(148,163,184,.12);color:#64748b;border:1.5px solid rgba(148,163,184,.3);border-radius:30px;padding:3px 9px;font-size:11px;font-weight:700}
+.rank-3{background:rgba(180,110,50,.12);color:#92400e;border:1.5px solid rgba(180,110,50,.3);border-radius:30px;padding:3px 9px;font-size:11px;font-weight:700}
+.rank-n{background:color-mix(in srgb,var(--a1) 12%,transparent);color:var(--a2);border:1.5px solid color-mix(in srgb,var(--a1) 25%,transparent);border-radius:30px;padding:3px 9px;font-size:11px;font-weight:700}
+
+/* ══ 모달 ══ */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:300;align-items:flex-end;backdrop-filter:blur(6px)}
+.modal-overlay.open{display:flex}
+.modal{
+  background:var(--surface);border-radius:32px 32px 0 0;width:100%;
+  max-height:93vh;overflow-y:auto;
+  padding:8px 20px calc(28px + env(safe-area-inset-bottom));
+  animation:su .28s cubic-bezier(.34,1.15,.64,1);
+  border-top:1.5px solid var(--border);
+}
+@keyframes su{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-handle{width:40px;height:4px;background:var(--border);border-radius:3px;margin:14px auto 20px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.modal-head h2{font-size:20px;font-weight:900;letter-spacing:-.5px}
+.modal-x{background:var(--card);border:1.5px solid var(--border);color:var(--sub);cursor:pointer;font-size:18px;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.form-group{margin-bottom:16px}
+.modal-actions{display:flex;gap:10px;margin-top:22px}
+.modal-actions .btn{flex:1;padding:14px}
+
+/* ══ 미디어첨부 ══ */
+.mpg{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.mthumb{position:relative;width:80px;height:80px;border-radius:14px;overflow:hidden;flex-shrink:0;border:1.5px solid var(--border)}
+.mthumb img,.mthumb video{width:100%;height:100%;object-fit:cover}
+.mdel{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.7);border:none;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:14px}
+.madd{width:80px;height:80px;border-radius:14px;border:2px dashed var(--a1);background:color-mix(in srgb,var(--a1) 8%,transparent);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--a2);font-size:10px;font-weight:700;cursor:pointer;flex-shrink:0}
+.madd-icon{font-size:22px}
+
+/* ══ 상세 ══ */
+.detail-media img,.detail-media video{width:100%;display:block;margin-bottom:2px}
+.detail-media{margin:0 -20px}
+.detail-text{font-size:15px;line-height:1.78;white-space:pre-wrap;margin:16px 0;word-break:break-all}
+.detail-comment-box{
+  background:color-mix(in srgb,var(--a1) 10%,transparent);
+  border:1.5px solid color-mix(in srgb,var(--a1) 28%,transparent);
+  border-radius:18px;padding:15px;margin-top:6px;
+}
+.dc-label{font-size:11px;color:var(--a2);font-weight:800;letter-spacing:.5px;margin-bottom:7px}
+.detail-comment-box p{font-size:14px;line-height:1.7;white-space:pre-wrap;word-break:break-all}
+.detail-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.detail-link{display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:14px;background:var(--card);border:1.5px solid var(--border);text-decoration:none;color:var(--sub);font-size:13px;margin-bottom:12px;overflow:hidden}
+.detail-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ══ 카테고리 ══ */
+.cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cat-card{
+  background:var(--card);border-radius:20px;border:1.5px solid var(--border);
+  padding:18px 14px;cursor:pointer;transition:all .2s;box-shadow:var(--card-shadow);
+  position:relative;overflow:hidden;
+}
+.cat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:var(--grad)}
+.cat-card:active{border-color:var(--a1);transform:scale(.96)}
+.cat-card h3{font-size:15px;font-weight:800;margin-bottom:4px}
+.cat-card p{font-size:12px;color:var(--sub)}
+.cat-card-all{grid-column:1/-1}
+
+/* ══ 검색 ══ */
+.search-wrap{position:relative;margin-bottom:14px}
+.search-icon-abs{position:absolute;left:15px;top:50%;transform:translateY(-50%);font-size:18px;pointer-events:none}
+.search-wrap input{padding-left:44px}
+.schips{display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none}
+.schips::-webkit-scrollbar{display:none}
+.schip{padding:7px 14px;border-radius:30px;border:1.5px solid var(--border);background:var(--card);color:var(--sub);font-size:13px;font-weight:600;white-space:nowrap;cursor:pointer;transition:all .2s;flex-shrink:0}
+.schip.active{background:var(--grad);color:#fff;border-color:transparent}
+
+/* ══ 설정 ══ */
+.ss{margin-bottom:24px}
+.ss-title{font-size:12px;font-weight:800;letter-spacing:.8px;color:var(--sub);margin-bottom:12px;padding-left:2px}
+.set-row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--card);border-radius:16px;margin-bottom:8px;border:1.5px solid var(--border)}
+.set-row span{font-size:14px;font-weight:600}
+.set-row small{font-size:11px;color:var(--sub);display:block;margin-top:2px}
+.divider{height:1.5px;background:var(--border);margin:20px 0}
+
+/* ══ 테마 ══ */
+.theme-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tbtn{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 8px;border-radius:18px;border:2px solid var(--border);background:var(--card);cursor:pointer;transition:all .2s}
+.tbtn.active{border-color:var(--a2);background:color-mix(in srgb,var(--a1) 14%,transparent)}
+.tswatch{width:40px;height:40px;border-radius:50%;border:2px solid rgba(255,255,255,.2);box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.tbtn span{font-size:11px;font-weight:700;color:var(--sub)}
+.tbtn.active span{color:var(--a2)}
+
+/* ══ 카테고리관리 ══ */
+.cmi{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.cmi input{flex:1;padding:10px 12px;font-size:14px}
+
+/* ══ 뷰입력 ══ */
+.views-row{display:flex;align-items:center;gap:10px}
+.views-row input{width:120px}
+.views-row span{font-size:13px;color:var(--sub)}
+
+/* ══ 구글 드라이브 연동 ══ */
+.gdrive-box{
+  background:var(--card);border-radius:20px;border:1.5px solid var(--border);
+  padding:18px;box-shadow:var(--card-shadow);
+}
+.gdrive-status{
+  display:flex;align-items:center;gap:10px;margin-bottom:14px;
+}
+.gdrive-dot{width:10px;height:10px;border-radius:50%;background:#888;flex-shrink:0;transition:background .3s}
+.gdrive-dot.connected{background:var(--green)}
+.gdrive-status-text{font-size:14px;font-weight:700}
+.gdrive-status-sub{font-size:11px;color:var(--sub);margin-top:1px}
+.gdrive-actions{display:flex;gap:8px;flex-wrap:wrap}
+.gdrive-guide{
+  background:color-mix(in srgb,var(--a1) 8%,transparent);
+  border:1.5px solid color-mix(in srgb,var(--a1) 22%,transparent);
+  border-radius:14px;padding:14px;margin-top:12px;font-size:13px;line-height:1.7;color:var(--sub);
+}
+.gdrive-guide b{color:var(--a2)}
+.client-id-row{display:flex;gap:8px;margin-top:10px}
+.client-id-row input{flex:1;font-size:12px;padding:9px 12px}
+
+/* ══ 빈상태 ══ */
+.empty-state{text-align:center;padding:60px 20px}
+.empty-icon{font-size:52px;margin-bottom:14px}
+.empty-state p{font-size:14px;color:var(--sub);line-height:1.8;font-weight:500}
+
+/* ══ 토스트 ══ */
+#toast{
+  position:fixed;top:72px;left:50%;transform:translateX(-50%);
+  background:var(--grad);color:#fff;padding:11px 24px;border-radius:30px;
+  font-size:14px;font-weight:700;z-index:9999;opacity:0;transition:opacity .3s;
+  pointer-events:none;white-space:nowrap;box-shadow:var(--shadow);
+}
+#toast.show{opacity:1}
+
+/* ══ 스크롤바 ══ */
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 </style>
 </head>
-<body>
+<body class="theme-black">
+<div id="app">
 
-<header>
-  <div>
-    <h1>📝 네이버 블로그 쿠팡파트너스 수집기</h1>
+  <div id="topbar">
+    <span id="topbar-title">🌸 스레드 노트</span>
+    <button id="topbar-theme-btn">🎨 테마</button>
   </div>
-  <span class="badge">로그인 불필요</span>
-</header>
 
-<div class="container">
-  <div class="grid">
+  <div id="content">
 
-    <!-- ── 왼쪽: 설정 패널 ── -->
-    <div>
-      <div class="card">
-        <h2>⚙️ 수집 설정</h2>
-
-        <label>검색 키워드 (쉼표 구분)</label>
-        <input type="text" id="tags" value="쿠팡파트너스,쿠팡추천,쿠팡구매" />
-        <p class="hint">네이버 블로그 검색어로 사용됩니다</p>
-
-        <label>수집 범위 (시간)</label>
-        <input type="number" id="hours" value="48" min="1" max="720" />
-
-        <label>키워드당 최대 페이지 수</label>
-        <input type="number" id="scrolls" value="3" min="1" max="50" />
-        <p class="hint">1페이지 = 블로그 글 10개 (많을수록 느림)</p>
-
-        <div style="margin-top:16px;padding:10px 12px;border-radius:8px;font-size:12px;background:#0a1a0a;border:1px solid #1a3a1a;color:#4ade80;">
-          ✅ 로그인 없이 바로 수집됩니다
+    <!-- 홈 -->
+    <div id="screen-home" class="screen active">
+      <div class="date-box">
+        <div class="date-box-title">🗓️ 날짜로 찾기</div>
+        <div class="date-input-row">
+          <input type="number" id="date-num" placeholder="숫자" min="0">
+          <select id="date-unit">
+            <option value="day">일 전</option>
+            <option value="week">주 전</option>
+            <option value="month">달 전</option>
+          </select>
+          <button class="btn btn-primary btn-sm" id="date-search-btn">찾기</button>
+          <button class="btn btn-ghost btn-sm" id="date-clear-btn">전체</button>
         </div>
+        <div class="date-presets">
+          <button class="preset-btn" data-days="0">오늘</button>
+          <button class="preset-btn" data-days="1">1일</button>
+          <button class="preset-btn" data-days="2">2일</button>
+          <button class="preset-btn" data-days="3">3일</button>
+          <button class="preset-btn" data-days="5">5일</button>
+          <button class="preset-btn" data-days="7">1주일</button>
+          <button class="preset-btn" data-days="14">2주일</button>
+          <button class="preset-btn" data-days="30">한달</button>
+        </div>
+      </div>
+      <!-- 플랫폼 필터 -->
+      <div class="plat-filter-row" id="plat-filter-row">
+        <div class="pchip active" data-plat="all">전체</div>
+        <div class="pchip" data-plat="threads">🧵 스레드</div>
+        <div class="pchip" data-plat="instagram">📸 인스타</div>
+        <div class="pchip" data-plat="clip">🎬 클립</div>
+        <div class="pchip" data-plat="youtube">▶️ 유튜브</div>
+        <div class="pchip" data-plat="tiktok">🎵 틱톡</div>
+        <div class="pchip" data-plat="other">🔗 기타</div>
+      </div>
+      <div class="sort-row">
+        <div class="sort-chip active" data-sort="date">🕐 최신순</div>
+        <div class="sort-chip" data-sort="views">👁️ 조회수순</div>
+        <div class="sort-chip" data-sort="repost">🔁 재게시 임박순</div>
+      </div>
+      <div id="home-list"></div>
+    </div>
 
-        <button class="btn btn-primary" id="start-btn" onclick="startJob()">▶ 수집 시작</button>
-        <button class="btn btn-danger"  id="stop-btn"  onclick="stopJob()" style="display:none">⏹ 중단</button>
-        <button class="btn btn-dl"      id="dl-btn"    onclick="downloadCSV()" style="display:none">⬇ CSV 다운로드</button>
+    <!-- 카테고리 -->
+    <div id="screen-category" class="screen">
+      <div id="cat-grid-wrap" class="cat-grid"></div>
+      <div id="cat-posts-wrap" style="display:none">
+        <button class="btn btn-ghost btn-sm" id="cat-back" style="margin-bottom:16px">← 목록으로</button>
+        <div id="cat-posts-inner"></div>
       </div>
     </div>
 
-    <!-- ── 오른쪽: 결과 ── -->
-    <div class="right-panel">
-
-      <!-- 진행 상황 -->
-      <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <h2 style="margin:0">📡 진행 상황</h2>
-          <span id="status-badge"><span class="dot"></span> 대기 중</span>
-        </div>
-        <div id="log-box"><span class="warn">▶ 수집 시작을 눌러주세요.</span></div>
+    <!-- 검색 -->
+    <div id="screen-search" class="screen">
+      <div class="search-wrap">
+        <span class="search-icon-abs">🔍</span>
+        <input type="search" id="search-input" placeholder="글·댓글·링크 검색..." autocomplete="off">
       </div>
+      <div class="schips" id="schips"></div>
+      <div id="search-list"></div>
+    </div>
 
-      <!-- 탭: TOP10 / 전체 -->
-      <div>
-        <div class="tabs">
-          <div class="tab active" onclick="switchTab('top10-tab', this)">🏆 TOP 10</div>
-          <div class="tab"        onclick="switchTab('all-tab',   this)">📋 전체 목록 (벤치마킹)</div>
-        </div>
+    <!-- 설정 -->
+    <div id="screen-settings" class="screen">
 
-        <div id="top10-tab" class="tab-content active">
-          <div id="top10">
-            <div class="empty">
-              <div class="emoji">🔎</div>
-              <p>수집이 완료되면 TOP 10이 표시됩니다.</p>
+      <!-- 구글 드라이브 연동 -->
+      <div class="ss">
+        <div class="ss-title">☁️ 구글 드라이브 연동</div>
+        <div class="gdrive-box">
+          <div class="gdrive-status">
+            <div class="gdrive-dot" id="gdrive-dot"></div>
+            <div>
+              <div class="gdrive-status-text" id="gdrive-status-text">연결 안 됨</div>
+              <div class="gdrive-status-sub" id="gdrive-status-sub">연결하면 자동으로 내 드라이브에 저장돼요</div>
+            </div>
+          </div>
+          <div class="gdrive-actions">
+            <button class="btn btn-primary btn-sm" id="gdrive-connect-btn">🔗 구글 계정 연결</button>
+            <button class="btn btn-ghost btn-sm" id="gdrive-save-btn" style="display:none">💾 지금 저장</button>
+            <button class="btn btn-ghost btn-sm" id="gdrive-load-btn" style="display:none">📥 드라이브에서 불러오기</button>
+            <button class="btn btn-danger btn-sm" id="gdrive-disconnect-btn" style="display:none">연결 해제</button>
+          </div>
+          <div class="gdrive-guide" id="gdrive-guide">
+            <b>📌 처음 사용법</b><br>
+            1. 아래에 Client ID를 입력하세요<br>
+            2. "구글 계정 연결" 버튼 클릭<br>
+            3. 구글 계정으로 로그인<br>
+            4. 이후 자동으로 내 드라이브에 저장됩니다 ✨<br><br>
+            <b>🔑 Client ID가 없나요?</b><br>
+            Client ID 없이도 앱은 정상 사용 가능해요.<br>
+            드라이브 연동은 선택 사항이에요.<br>
+            <div class="client-id-row">
+              <input type="text" id="client-id-input" placeholder="Google OAuth Client ID 입력...">
+              <button class="btn btn-ghost btn-sm" id="client-id-save-btn">저장</button>
             </div>
           </div>
         </div>
+      </div>
 
-        <div id="all-tab" class="tab-content">
-          <div id="all-table-wrap">
-            <div class="empty">
-              <div class="emoji">📄</div>
-              <p>수집이 완료되면 전체 게시글이 표시됩니다.</p>
-            </div>
-          </div>
+      <div class="divider"></div>
+
+      <div class="ss">
+        <div class="ss-title">🎨 테마 색상</div>
+        <div class="theme-grid" id="theme-grid-settings"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="ss">
+        <div class="ss-title">📂 카테고리 관리</div>
+        <div id="cat-manage-list"></div>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <input type="text" id="new-cat-input" placeholder="새 카테고리 이름" style="flex:1;padding:10px 12px">
+          <button class="btn btn-primary" id="add-cat-btn">+ 추가</button>
         </div>
       </div>
 
+      <div class="divider"></div>
+
+      <div class="ss">
+        <div class="ss-title">💾 데이터 백업</div>
+        <div class="set-row">
+          <div><span>📤 JSON 내보내기</span><small>파일로 백업 저장</small></div>
+          <button class="btn btn-ghost btn-sm" id="export-btn">저장</button>
+        </div>
+        <div class="set-row">
+          <div><span>📥 JSON 불러오기</span><small>백업 파일 복원</small></div>
+          <button class="btn btn-ghost btn-sm" id="import-btn">열기</button>
+        </div>
+        <input type="file" id="import-file" accept=".json" style="display:none">
+        <div class="set-row">
+          <span id="post-count-info" style="font-size:14px;font-weight:600">게시글 0개</span>
+          <small style="color:var(--sub);font-size:12px">사진·영상 포함</small>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <nav id="navbar">
+    <button class="nav-btn active" data-screen="home"><span class="nav-icon">🏠</span>홈</button>
+    <button class="nav-btn" data-screen="category"><span class="nav-icon">🗂️</span>카테고리</button>
+    <button class="nav-btn" data-screen="search"><span class="nav-icon">🔎</span>검색</button>
+    <button class="nav-btn" data-screen="settings"><span class="nav-icon">⚙️</span>설정</button>
+  </nav>
+</div>
+
+<!-- FAB -->
+<button id="fab">✍️</button>
+
+<!-- 작성 모달 -->
+<div class="modal-overlay" id="write-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-head">
+      <h2 id="write-title">✨ 게시글 추가</h2>
+      <button class="modal-x" id="write-x">×</button>
+    </div>
+    <div class="form-group">
+      <label>🔗 출처 링크</label>
+      <input type="url" id="f-link" placeholder="https://threads.net/...">
+    </div>
+    <div class="form-group">
+      <label>📱 플랫폼</label>
+      <select id="f-platform">
+        <option value="threads">🧵 스레드</option>
+        <option value="instagram">📸 인스타그램</option>
+        <option value="clip">🎬 클립</option>
+        <option value="youtube">▶️ 유튜브</option>
+        <option value="tiktok">🎵 틱톡</option>
+        <option value="other">🔗 기타</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>📂 카테고리</label>
+      <select id="f-category"></select>
+    </div>
+    <div class="form-group">
+      <label>📝 글 내용</label>
+      <textarea id="f-text" rows="5" placeholder="게시글 내용을 붙여넣거나 직접 입력하세요..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>💬 내가 쓴 댓글</label>
+      <textarea id="f-comment" rows="3" placeholder="내가 쓴 댓글..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>📅 실제 게시 날짜 (스레드에 올린 날)</label>
+      <input type="date" id="f-postdate">
+    </div>
+    <div class="form-group">
+      <label>🔁 재게시 주기 설정 (조회수 좋은 글 반복 게시)</label>
+      <div class="repost-interval-row">
+        <input type="number" id="f-repost-interval" placeholder="0" min="0" max="365">
+        <span>일마다 재게시 (0이면 미사용)</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>👁️ 조회수</label>
+      <div class="views-row">
+        <input type="number" id="f-views" placeholder="0" min="0">
+        <span>직접 입력</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>🖼️ 사진 / 영상</label>
+      <div class="mpg" id="mpg"></div>
+      <input type="file" id="f-media" accept="image/*,video/*" multiple style="display:none">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="write-cancel">취소</button>
+      <button class="btn btn-primary" id="write-save">💾 저장하기</button>
     </div>
   </div>
 </div>
 
+<!-- 상세 모달 -->
+<div class="modal-overlay" id="detail-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div id="detail-content"></div>
+    <div style="display:flex;gap:8px;margin-top:18px">
+      <button class="btn btn-ghost" id="detail-edit" style="flex:1">✏️ 수정</button>
+      <button class="btn btn-danger" id="detail-delete" style="flex:1">🗑️ 삭제</button>
+      <button class="btn btn-ghost" id="detail-close" style="flex:1">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 테마 모달 -->
+<div class="modal-overlay" id="theme-modal">
+  <div class="modal" style="max-height:55vh">
+    <div class="modal-handle"></div>
+    <div class="modal-head">
+      <h2>🎨 테마 선택</h2>
+      <button class="modal-x" id="theme-x">×</button>
+    </div>
+    <div class="theme-grid" id="theme-grid-modal"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
 <script>
-let pollTimer = null;
-let lastLogCount = 0;
+// ══ 상태 ════════════════════════════════════════════
+let posts=[], categories=['일상','정보','홍보','광고','기타'];
+let editingId=null, pendingMedia=[], curScreen='home';
+let homeSort='date', homeDateFilter=null, homePlatFilter='all';
+let searchCatFilter='all', curDetailId=null, curTheme='black';
+let gdriveConnected=false, gdriveAccessToken=null, gdriveFileId=null, gdriveUserEmail='';
 
-// ── 탭 전환 ──────────────────────────────────────────────────────────────────
-function switchTab(id, el) {
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  el.classList.add('active');
+// ══ 로컬 저장 ══════════════════════════════════════
+function saveLocal(){
+  localStorage.setItem('tn3_posts', JSON.stringify(posts));
+  localStorage.setItem('tn3_cats', JSON.stringify(categories));
+  localStorage.setItem('tn3_theme', curTheme);
+  if(gdriveConnected) scheduleDriveSave();
+}
+function loadLocal(){
+  try{ posts=JSON.parse(localStorage.getItem('tn3_posts')||'[]'); }catch(e){ posts=[]; }
+  try{ categories=JSON.parse(localStorage.getItem('tn3_cats')||'["일상","정보","홍보","광고","기타"]'); }catch(e){}
+  curTheme=localStorage.getItem('tn3_theme')||'black';
+  applyTheme(curTheme,false);
 }
 
-// ── 수집 시작 ─────────────────────────────────────────────────────────────────
-async function startJob() {
-  const tags    = document.getElementById('tags').value.split(',').map(s => s.trim()).filter(Boolean);
-  const hours   = parseInt(document.getElementById('hours').value) || 48;
-  const scrolls = parseInt(document.getElementById('scrolls').value) || 10;
+// ══ 구글 드라이브 연동 ═══════════════════════════════
+const DRIVE_FILE_NAME = '스레드노트_data.json';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+let driveAutoSaveTimer = null;
 
-  lastLogCount = 0;
-  document.getElementById('log-box').innerHTML = '';
-  document.getElementById('top10').innerHTML = '<div class="empty"><div class="emoji">⏳</div><p>수집 중...</p></div>';
-  document.getElementById('all-table-wrap').innerHTML = '<div class="empty"><div class="emoji">⏳</div><p>수집 중...</p></div>';
-  document.getElementById('dl-btn').style.display = 'none';
+function getClientId(){ return localStorage.getItem('tn3_client_id')||''; }
 
-  setStatus('running', '수집 중...');
-  toggleBtns(true);
+document.getElementById('client-id-save-btn').addEventListener('click',()=>{
+  const v=document.getElementById('client-id-input').value.trim();
+  localStorage.setItem('tn3_client_id', v);
+  toast('Client ID 저장됐어요 ✅');
+});
 
-  await fetch('/api/start', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ tags, hours, max_scrolls: scrolls }),
-  });
+document.getElementById('gdrive-connect-btn').addEventListener('click', connectDrive);
+document.getElementById('gdrive-disconnect-btn').addEventListener('click', disconnectDrive);
+document.getElementById('gdrive-save-btn').addEventListener('click', saveToDrive);
+document.getElementById('gdrive-load-btn').addEventListener('click', loadFromDrive);
 
-  pollTimer = setInterval(pollStatus, 1500);
-}
-
-// ── 중단 ──────────────────────────────────────────────────────────────────────
-async function stopJob() {
-  await fetch('/api/stop', { method: 'POST' });
-  clearInterval(pollTimer);
-  setStatus('done', '중단됨');
-  toggleBtns(false);
-}
-
-// ── 상태 폴링 ─────────────────────────────────────────────────────────────────
-async function pollStatus() {
-  try {
-    const res  = await fetch('/api/status');
-    const data = await res.json();
-
-    // 새 로그만 추가
-    const logBox = document.getElementById('log-box');
-    const newLogs = data.logs.slice(lastLogCount);
-    newLogs.forEach(msg => {
-      const span = document.createElement('div');
-      span.className = msg.startsWith('✓') || msg.startsWith('✅') || msg.startsWith('🏁') || msg.startsWith('🏆') ? 'ok'
-                     : msg.startsWith('❌') ? 'err'
-                     : msg.startsWith('⚠️') || msg.startsWith('⏰') ? 'warn' : '';
-      span.textContent = msg;
-      logBox.appendChild(span);
-    });
-    lastLogCount = data.logs.length;
-    logBox.scrollTop = logBox.scrollHeight;
-
-    if (data.done) {
-      clearInterval(pollTimer);
-      toggleBtns(false);
-
-      if (data.error) {
-        setStatus('error', '오류 발생');
-      } else {
-        setStatus('done', `완료 — ${data.results.length}개 수집`);
-        renderResults(data.results);
-        if (data.results.length > 0) {
-          document.getElementById('dl-btn').style.display = '';
-        }
-      }
-    }
-  } catch(e) {
-    console.error(e);
-  }
-}
-
-// ── 결과 렌더링 (TOP 10) ──────────────────────────────────────────────────────
-function renderResults(posts) {
-  // TOP 10
-  const top10El = document.getElementById('top10');
-  if (!posts.length) {
-    top10El.innerHTML = '<div class="empty"><div class="emoji">😅</div><p>쿠팡파트너스 게시글을 찾지 못했습니다.<br>태그를 추가하거나 스크롤 수를 늘려보세요.</p></div>';
+function connectDrive(){
+  const clientId=getClientId();
+  if(!clientId){
+    toast('먼저 Client ID를 입력·저장해주세요 🙏');
+    document.getElementById('client-id-input').focus();
     return;
   }
+  try{
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: DRIVE_SCOPE,
+      callback: async (resp) => {
+        if(resp.error){ toast('연결 실패: '+resp.error); return; }
+        gdriveAccessToken = resp.access_token;
+        gdriveConnected = true;
+        localStorage.setItem('tn3_drive_token', gdriveAccessToken);
+        await fetchUserInfo();
+        await findOrCreateFile();
+        updateDriveUI();
+        toast('구글 드라이브 연결됐어요! ☁️');
+      }
+    });
+    client.requestAccessToken();
+  }catch(e){
+    toast('Google API 로드 중... 잠시 후 다시 시도해주세요');
+  }
+}
 
-  top10El.innerHTML = '';
-  posts.slice(0, 10).forEach((p, i) => {
-    const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
-    const dt = p.created_at ? new Date(p.created_at).toLocaleString('ko-KR') : '시간 미상';
-    const linksHtml = (p.coupang_links || []).slice(0, 3).map(url =>
-      `<a href="${esc(url)}" target="_blank" rel="noopener">🛒 쿠팡 링크</a>`
-    ).join('');
-    const preview = p.content || p.description || '';
+async function fetchUserInfo(){
+  try{
+    const r = await fetch('https://www.googleapis.com/oauth2/v2/userinfo',{
+      headers:{Authorization:'Bearer '+gdriveAccessToken}
+    });
+    const d = await r.json();
+    gdriveUserEmail = d.email||'';
+    localStorage.setItem('tn3_drive_email', gdriveUserEmail);
+  }catch(e){}
+}
 
-    const card = document.createElement('div');
-    card.className = 'post-card';
-    card.innerHTML = `
-      <div class="rank-badge ${rankClass}">${i+1}</div>
-      <div class="post-info">
-        <h3>${esc(p.product_name || p.title || '제품명 미상')}</h3>
-        <div class="post-meta">
-          <span>📝 ${esc(p.blog_name || '-')}</span>
-          <span>🕐 ${dt}</span>
-          <span>👁 ${num(p.views)}</span>
-          <span>💬 ${num(p.comments)}</span>
-          <span style="color:var(--yellow)">⭐ ${num(p.score)}</span>
-        </div>
-        <div class="post-links">${linksHtml}</div>
-        <div class="post-preview" id="prev-${i}">${esc(preview.slice(0, 150))}</div>
-        <button class="expand-btn" onclick="togglePreview(${i}, ${JSON.stringify(preview).replace(/</g,'\\u003c')})">더 보기 ▼</button>
-        ${p.url ? `<a class="threads-link" href="${esc(p.url)}" target="_blank" rel="noopener">🔗 블로그 글 보기</a>` : ''}
-      </div>
-    `;
-    top10El.appendChild(card);
+async function findOrCreateFile(){
+  // 기존 파일 검색
+  const q = encodeURIComponent(`name='${DRIVE_FILE_NAME}' and trashed=false`);
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`,{
+    headers:{Authorization:'Bearer '+gdriveAccessToken}
   });
+  const d = await r.json();
+  if(d.files && d.files.length>0){
+    gdriveFileId = d.files[0].id;
+    localStorage.setItem('tn3_drive_file_id', gdriveFileId);
+  } else {
+    // 새 파일 생성
+    await saveToDrive(true);
+  }
+}
 
-  // 전체 테이블
-  const wrap = document.getElementById('all-table-wrap');
-  const rows = posts.map((p, i) => {
-    const dt = p.created_at ? new Date(p.created_at).toLocaleString('ko-KR') : '-';
-    const links = (p.coupang_links || []).slice(0,2).map(url =>
-      `<a href="${esc(url)}" target="_blank">링크</a>`
-    ).join(' ');
-    const preview = p.content || p.description || '';
-    return `
-      <tr>
-        <td>${i+1}</td>
-        <td>${esc(p.product_name || '-')}</td>
-        <td>${esc(p.blog_name || '-')}</td>
-        <td>${dt}</td>
-        <td>${num(p.views)}</td>
-        <td>${num(p.comments)}</td>
-        <td class="tbl-score">${num(p.score)}</td>
-        <td>${links}</td>
-        <td>${p.url ? `<a href="${esc(p.url)}" target="_blank">글 보기</a>` : '-'}</td>
-        <td title="${esc(preview)}">${esc(preview.slice(0,60))}…</td>
-      </tr>
-    `;
-  }).join('');
+async function saveToDrive(silent=false){
+  if(!gdriveConnected||!gdriveAccessToken){ toast('드라이브 미연결 상태예요 🙏'); return; }
+  const data = JSON.stringify({posts,categories,savedAt:new Date().toISOString()},null,2);
+  const blob = new Blob([data],{type:'application/json'});
 
-  wrap.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>#</th><th>제품명</th><th>블로그</th><th>시각</th>
-          <th>조회</th><th>댓글</th><th>점수</th>
-          <th>쿠팡</th><th>글</th><th>내용</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
+  try{
+    let res;
+    if(gdriveFileId){
+      // 기존 파일 업데이트
+      res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${gdriveFileId}?uploadType=media`,{
+        method:'PATCH',
+        headers:{Authorization:'Bearer '+gdriveAccessToken,'Content-Type':'application/json'},
+        body:data
+      });
+    } else {
+      // 새 파일 생성
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify({name:DRIVE_FILE_NAME,mimeType:'application/json'})],{type:'application/json'}));
+      form.append('file', blob);
+      res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{
+        method:'POST',
+        headers:{Authorization:'Bearer '+gdriveAccessToken},
+        body:form
+      });
+      const rd = await res.json();
+      gdriveFileId = rd.id;
+      localStorage.setItem('tn3_drive_file_id', gdriveFileId);
+    }
+    if(!silent) toast('☁️ 드라이브에 저장됐어요!');
+  }catch(e){
+    if(!silent) toast('저장 실패 😢 토큰이 만료됐을 수 있어요');
+  }
+}
+
+async function loadFromDrive(){
+  if(!gdriveConnected||!gdriveAccessToken||!gdriveFileId){ toast('드라이브에 저장된 파일이 없어요'); return; }
+  try{
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${gdriveFileId}?alt=media`,{
+      headers:{Authorization:'Bearer '+gdriveAccessToken}
+    });
+    const d = await r.json();
+    if(!d.posts) throw new Error();
+    if(confirm(`드라이브에서 게시글 ${d.posts.length}개를 불러올까요?\n(현재 데이터 대체)`)){
+      posts=d.posts;
+      if(d.categories) categories=d.categories;
+      saveLocal();
+      refresh();
+      toast('☁️ 드라이브에서 불러왔어요!');
+    }
+  }catch(e){
+    toast('불러오기 실패 😢');
+  }
+}
+
+function scheduleDriveSave(){
+  clearTimeout(driveAutoSaveTimer);
+  driveAutoSaveTimer = setTimeout(()=>saveToDrive(true), 3000);
+}
+
+function disconnectDrive(){
+  gdriveConnected=false; gdriveAccessToken=null; gdriveFileId=null; gdriveUserEmail='';
+  localStorage.removeItem('tn3_drive_token');
+  localStorage.removeItem('tn3_drive_file_id');
+  localStorage.removeItem('tn3_drive_email');
+  updateDriveUI();
+  toast('연결 해제됐어요');
+}
+
+function updateDriveUI(){
+  const dot=document.getElementById('gdrive-dot');
+  const stxt=document.getElementById('gdrive-status-text');
+  const ssub=document.getElementById('gdrive-status-sub');
+  const connectBtn=document.getElementById('gdrive-connect-btn');
+  const saveBtn=document.getElementById('gdrive-save-btn');
+  const loadBtn=document.getElementById('gdrive-load-btn');
+  const discBtn=document.getElementById('gdrive-disconnect-btn');
+  const guide=document.getElementById('gdrive-guide');
+
+  if(gdriveConnected){
+    dot.classList.add('connected');
+    stxt.textContent='연결됨 ✅';
+    ssub.textContent=gdriveUserEmail||'연결된 계정';
+    connectBtn.style.display='none';
+    saveBtn.style.display='';
+    loadBtn.style.display='';
+    discBtn.style.display='';
+    guide.style.display='none';
+  } else {
+    dot.classList.remove('connected');
+    stxt.textContent='연결 안 됨';
+    ssub.textContent='연결하면 자동으로 내 드라이브에 저장돼요';
+    connectBtn.style.display='';
+    saveBtn.style.display='none';
+    loadBtn.style.display='none';
+    discBtn.style.display='none';
+    guide.style.display='';
+    const savedId=localStorage.getItem('tn3_client_id');
+    if(savedId) document.getElementById('client-id-input').value=savedId;
+  }
+}
+
+// ══ 테마 ════════════════════════════════════════════
+const THEMES={
+  black:{name:'🖤 블랙',swatch:'linear-gradient(135deg,#141414,#9333ea)'},
+  pink:{name:'🌸 베이비핑크',swatch:'linear-gradient(135deg,#fce7f3,#f472b6)'},
+  mint:{name:'🌿 밝은민트',swatch:'linear-gradient(135deg,#ccfbf1,#2dd4bf)'},
+  white:{name:'🤍 화이트',swatch:'linear-gradient(135deg,#f5f5ff,#8b5cf6)'},
+  rose:{name:'🌹 로즈',swatch:'linear-gradient(135deg,#fecdd3,#fb7185)'},
+  navy:{name:'🌙 네이비',swatch:'linear-gradient(135deg,#0c1428,#3b82f6)'},
+};
+function applyTheme(t,doSave=true){
+  document.body.className=`theme-${t}`;
+  curTheme=t;
+  if(doSave){ localStorage.setItem('tn3_theme',t); }
+  renderThemeGrids();
+}
+function renderThemeGrids(){
+  ['theme-grid-settings','theme-grid-modal'].forEach(id=>{
+    const g=document.getElementById(id); if(!g) return;
+    g.innerHTML='';
+    Object.entries(THEMES).forEach(([key,th])=>{
+      const b=document.createElement('button');
+      b.className='tbtn'+(key===curTheme?' active':'');
+      b.innerHTML=`<div class="tswatch" style="background:${th.swatch}"></div><span>${th.name}</span>`;
+      b.addEventListener('click',()=>{ applyTheme(key); toast(`${th.name} ✨`); });
+      g.appendChild(b);
+    });
+  });
+}
+document.getElementById('topbar-theme-btn').addEventListener('click',()=>{
+  renderThemeGrids();
+  document.getElementById('theme-modal').classList.add('open');
+});
+document.getElementById('theme-x').addEventListener('click',()=>document.getElementById('theme-modal').classList.remove('open'));
+document.getElementById('theme-modal').addEventListener('click',function(e){ if(e.target===this) this.classList.remove('open'); });
+
+// ══ 날짜 유틸 ══════════════════════════════════════
+function daysDiff(ds){ return(Date.now()-new Date(ds).getTime())/86400000; }
+function toYMD(ds){
+  const d=new Date(ds);
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
+function dateLabel(ds){
+  const d=daysDiff(ds);
+  const ymd=toYMD(ds);
+  if(d<1) return `오늘 (${ymd})`;
+  if(d<2) return `1일 전 (${ymd})`;
+  if(d<7) return `${Math.floor(d)}일 전 (${ymd})`;
+  return ymd;
+}
+
+// ══ 날짜 검색 ══════════════════════════════════════
+document.getElementById('date-search-btn').addEventListener('click',()=>{
+  const n=parseInt(document.getElementById('date-num').value);
+  const u=document.getElementById('date-unit').value;
+  if(isNaN(n)||n<0){ toast('숫자를 입력해주세요 🙏'); return; }
+  let days=n;
+  if(u==='week') days=n*7;
+  if(u==='month') days=n*30;
+  homeDateFilter={days};
+  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+  renderHome(); toast(`${flabel()} 게시글 검색 🔍`);
+});
+document.getElementById('date-clear-btn').addEventListener('click',()=>{
+  homeDateFilter=null;
+  document.getElementById('date-num').value='';
+  document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+  renderHome();
+});
+document.querySelectorAll('.preset-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const d=parseInt(btn.dataset.days);
+    homeDateFilter=d===0?{today:true}:{days:d};
+    document.getElementById('date-num').value='';
+    document.querySelectorAll('.preset-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    renderHome();
+  });
+});
+function flabel(){
+  if(!homeDateFilter) return '전체';
+  if(homeDateFilter.today) return '오늘';
+  const d=homeDateFilter.days;
+  return d<7?`${d}일 전`:d<30?`${Math.floor(d/7)}주 전`:`${Math.floor(d/30)}달 전`;
+}
+function matchFilter(p){
+  if(!homeDateFilter) return true;
+  // 게시 날짜가 있으면 게시 날짜 기준, 없으면 저장 날짜 기준
+  const refDate = p.postDate ? p.postDate : p.date;
+  const d=daysDiff(refDate);
+  if(homeDateFilter.today) return d<1;
+  return d>=homeDateFilter.days&&d<homeDateFilter.days+1;
+}
+
+// ══ 정렬 칩 ════════════════════════════════════════
+document.querySelectorAll('.sort-chip').forEach(c=>{
+  c.addEventListener('click',()=>{
+    homeSort=c.dataset.sort;
+    document.querySelectorAll('.sort-chip').forEach(x=>x.classList.toggle('active',x===c));
+    renderHome();
+  });
+});
+
+// ══ 플랫폼 필터 ═══════════════════════════════════════
+const PI={threads:'🧵',instagram:'📸',clip:'🎬',youtube:'▶️',tiktok:'🎵',other:'🔗'};
+function picon(p){ return PI[p]||'🔗'; }
+
+document.getElementById('plat-filter-row').addEventListener('click',e=>{
+  const chip=e.target.closest('.pchip'); if(!chip) return;
+  homePlatFilter=chip.dataset.plat;
+  document.querySelectorAll('.pchip').forEach(c=>c.classList.toggle('active',c===chip));
+  renderHome();
+});
+
+// ══ 재게시 트래커 ══════════════════════════════════════
+function repostStatus(p){
+  // 재게시 주기 없으면 null
+  if(!p.repostInterval||p.repostInterval<=0) return null;
+  const dates=p.repostDates||[];
+  const lastDate=dates.length>0?new Date(dates[dates.length-1]):p.postDate?new Date(p.postDate):new Date(p.date);
+  const nextDate=new Date(lastDate.getTime()+p.repostInterval*86400000);
+  const daysLeft=Math.ceil((nextDate-Date.now())/86400000);
+  return {daysLeft, nextDate, lastDate, count:dates.length};
+}
+
+function repostBadge(p){
+  const rs=repostStatus(p); if(!rs) return '';
+  if(rs.daysLeft<=0) return `<span class="repost-badge repost-ready">🔁 지금 게시하세요!</span>`;
+  if(rs.daysLeft===1) return `<span class="repost-badge repost-ready">🔁 내일 게시 예정! (D-1)</span>`;
+  if(rs.daysLeft<=2) return `<span class="repost-badge repost-soon">🔁 D-${rs.daysLeft} 임박</span>`;
+  return `<span class="repost-badge repost-wait">🔁 D-${rs.daysLeft}</span>`;
+}
+
+// ══ 순위 ═══════════════════════════════════════════
+function rankOf(id){
+  const s=[...posts].filter(p=>(p.views||0)>0).sort((a,b)=>(b.views||0)-(a.views||0));
+  const i=s.findIndex(p=>p.id===id);
+  return i===-1?null:i+1;
+}
+
+// ══ 카드 렌더 ══════════════════════════════════════
+function renderCard(p){
+  const div=document.createElement('div');
+  div.className='card';
+  const media=p.media||[];
+  let mhtml='';
+  if(media.length>0){
+    const show=Math.min(media.length,4);
+    mhtml=`<div style="position:relative"><div class="card-images n${show}">`;
+    for(let i=0;i<show;i++){
+      const m=media[i];
+      mhtml+=`<div class="mi">${m.type==='video'
+        ?`<video src="${m.dataUrl}" muted playsinline preload="metadata"></video>`
+        :`<img src="${m.dataUrl}" loading="lazy" alt="">`
+      }</div>`;
+    }
+    mhtml+='</div>';
+    if(media.length>4) mhtml+=`<div class="more-badge">+${media.length-4}</div>`;
+    mhtml+='</div>';
+  }
+  const rank=rankOf(p.id);
+  let rh='';
+  if(rank===1) rh='<span class="rank-1">🥇 1위</span>';
+  else if(rank===2) rh='<span class="rank-2">🥈 2위</span>';
+  else if(rank===3) rh='<span class="rank-3">🥉 3위</span>';
+  else if(rank) rh=`<span class="rank-n">#${rank}위</span>`;
+
+  div.innerHTML=`
+    ${mhtml}
+    <div class="card-body">
+      <div class="card-top">
+        <div class="plat-badge">${picon(p.platform)}</div>
+        <div class="card-info">
+          <div class="card-source">${p.link?esc(p.link):'링크 없음'}</div>
+          ${p.postDate?`<div class="card-datelabel">📅 게시일: <b>${esc(p.postDate.replaceAll('-','.'))}</b></div>`:''}
+          <div class="card-datelabel">💾 저장일: ${dateLabel(p.date)}</div>
+        </div>
+      </div>
+      ${p.text?`<div class="card-preview">${esc(p.text)}</div>`:''}
+      ${repostBadge(p)?`<div style="padding:0 0 8px">${repostBadge(p)}</div>`:''}
+      <div class="card-footer">
+        <span class="stat">👁️ ${(p.views||0).toLocaleString()}</span>
+        ${p.comment?'<span class="stat">💬 댓글있음</span>':''}
+        ${p.repostInterval>0?`<span class="stat">🔁 ${p.repostInterval}일 주기</span>`:''}
+        ${rh}
+        <span class="cat-tag">${esc(p.category||'기타')}</span>
+      </div>
+    </div>
+  `;
+  div.addEventListener('click',()=>openDetail(p.id));
+  return div;
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ══ 홈 ═════════════════════════════════════════════
+function renderHome(){
+  const list=document.getElementById('home-list'); list.innerHTML='';
+  let f=posts.filter(matchFilter);
+  // 플랫폼 필터
+  if(homePlatFilter!=='all') f=f.filter(p=>p.platform===homePlatFilter);
+  // 정렬
+  if(homeSort==='views') f=[...f].sort((a,b)=>(b.views||0)-(a.views||0));
+  else if(homeSort==='repost') f=[...f].filter(p=>p.repostInterval>0).sort((a,b)=>{
+    const ra=repostStatus(a), rb=repostStatus(b);
+    return (ra?ra.daysLeft:999)-(rb?rb.daysLeft:999);
+  });
+  else f=[...f].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  if(!f.length){
+    list.innerHTML=`<div class="empty-state"><div class="empty-icon">${homeDateFilter?'🔍':'📭'}</div><p>${homeDateFilter?`"${flabel()}" 날짜에\n게시글이 없어요`:'게시글이 없어요 🌸\n아래 ✍️ 버튼으로 추가해보세요!'}</p></div>`;
+    return;
+  }
+  f.forEach(p=>list.appendChild(renderCard(p)));
+}
+
+// ══ 카테고리 ═══════════════════════════════════════
+const CE=['🌸','💡','📣','💰','✨','🎵','🎬','📚','🎨','🌈'];
+function renderCatGrid(){
+  const g=document.getElementById('cat-grid-wrap'); g.innerHTML='';
+  document.getElementById('cat-posts-wrap').style.display='none';
+  g.style.display='grid';
+  categories.forEach((cat,i)=>{
+    const cnt=posts.filter(p=>p.category===cat).length;
+    const d=document.createElement('div'); d.className='cat-card';
+    d.innerHTML=`<h3>${CE[i%CE.length]} ${esc(cat)}</h3><p>${cnt}개의 게시글</p>`;
+    d.addEventListener('click',()=>showCatPosts(cat));
+    g.appendChild(d);
+  });
+  const all=document.createElement('div'); all.className='cat-card cat-card-all';
+  all.innerHTML=`<h3>📋 전체 보기</h3><p>${posts.length}개의 게시글</p>`;
+  all.addEventListener('click',()=>showCatPosts(null));
+  g.appendChild(all);
+}
+function showCatPosts(cat){
+  document.getElementById('cat-grid-wrap').style.display='none';
+  document.getElementById('cat-posts-wrap').style.display='block';
+  const inner=document.getElementById('cat-posts-inner'); inner.innerHTML='';
+  const f=(cat?posts.filter(p=>p.category===cat):posts).slice().sort((a,b)=>new Date(b.date)-new Date(a.date));
+  if(!f.length){
+    inner.innerHTML='<div class="empty-state"><div class="empty-icon">📂</div><p>게시글이 없어요</p></div>';
+  } else { f.forEach(p=>inner.appendChild(renderCard(p))); }
+}
+document.getElementById('cat-back').addEventListener('click',renderCatGrid);
+
+// ══ 검색 ═══════════════════════════════════════════
+function renderSchips(){
+  const c=document.getElementById('schips'); c.innerHTML='';
+  [['all','전체 🔍'],...categories.map(x=>[x,x])].forEach(([val,lbl])=>{
+    const d=document.createElement('div'); d.className='schip'+(searchCatFilter===val?' active':'');
+    d.textContent=lbl;
+    d.addEventListener('click',()=>{ searchCatFilter=val; renderSchips(); doSearch(); });
+    c.appendChild(d);
+  });
+}
+function doSearch(){
+  const q=document.getElementById('search-input').value.trim().toLowerCase();
+  const list=document.getElementById('search-list'); list.innerHTML='';
+  let f=posts;
+  if(searchCatFilter!=='all') f=f.filter(p=>p.category===searchCatFilter);
+  if(q) f=f.filter(p=>(p.text||'').toLowerCase().includes(q)||(p.comment||'').toLowerCase().includes(q)||(p.link||'').toLowerCase().includes(q));
+  f=[...f].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  if(!f.length){
+    list.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><p>${q?`"${q}" 검색 결과가 없어요 😢`:'검색어를 입력해보세요 ✨'}</p></div>`;
+  } else { f.forEach(p=>list.appendChild(renderCard(p))); }
+}
+document.getElementById('search-input').addEventListener('input',doSearch);
+
+// ══ 설정 ═══════════════════════════════════════════
+function renderSettings(){
+  document.getElementById('post-count-info').textContent=`게시글 ${posts.length}개 저장됨 ✨`;
+  renderCatManage(); renderThemeGrids(); updateDriveUI();
+}
+function renderCatManage(){
+  const list=document.getElementById('cat-manage-list'); list.innerHTML='';
+  categories.forEach((cat,i)=>{
+    const row=document.createElement('div'); row.className='cmi';
+    const inp=document.createElement('input'); inp.type='text'; inp.value=cat;
+    inp.addEventListener('blur',()=>{
+      const v=inp.value.trim();
+      if(!v||v===cat){ inp.value=cat; return; }
+      if(categories.includes(v)){ toast('이미 있는 이름이에요'); inp.value=cat; return; }
+      posts.forEach(p=>{ if(p.category===cat) p.category=v; });
+      categories[i]=v; saveLocal(); renderCatManage(); updateCatSel(); toast(`"${v}"으로 수정됐어요 ✅`);
+    });
+    const del=document.createElement('button'); del.className='btn btn-danger btn-sm'; del.textContent='삭제';
+    del.addEventListener('click',()=>{
+      if(posts.some(p=>p.category===cat)){ toast('이 카테고리에 게시글이 있어요 🙏'); return; }
+      categories.splice(i,1); saveLocal(); renderCatManage(); renderSchips(); updateCatSel(); toast('삭제됐어요');
+    });
+    row.appendChild(inp); row.appendChild(del); list.appendChild(row);
+  });
+}
+document.getElementById('add-cat-btn').addEventListener('click',()=>{
+  const v=document.getElementById('new-cat-input').value.trim();
+  if(!v) return;
+  if(categories.includes(v)){ toast('이미 있는 카테고리예요'); return; }
+  categories.push(v); saveLocal();
+  document.getElementById('new-cat-input').value='';
+  renderCatManage(); renderSchips(); updateCatSel(); toast(`"${v}" 추가됐어요 🎉`);
+});
+
+// ══ 카테고리 셀렉트 ════════════════════════════════
+function updateCatSel(){
+  const s=document.getElementById('f-category'); const cur=s.value;
+  s.innerHTML=categories.map(c=>`<option value="${esc(c)}"${c===cur?' selected':''}>${esc(c)}</option>`).join('');
+}
+
+// ══ 작성 모달 ══════════════════════════════════════
+function openWrite(post){
+  editingId=post?post.id:null;
+  pendingMedia=post?(post.media?[...post.media]:[]):[];
+  document.getElementById('write-title').textContent=post?'✏️ 게시글 수정':'✨ 게시글 추가';
+  document.getElementById('f-link').value=post?.link||'';
+  document.getElementById('f-platform').value=post?.platform||'threads';
+  document.getElementById('f-text').value=post?.text||'';
+  document.getElementById('f-comment').value=post?.comment||'';
+  document.getElementById('f-views').value=post?.views||'';
+  document.getElementById('f-postdate').value=post?.postDate||'';
+  document.getElementById('f-repost-interval').value=post?.repostInterval||'';
+  updateCatSel();
+  if(post?.category) document.getElementById('f-category').value=post.category;
+  renderMpg();
+  document.getElementById('write-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('f-text').focus(),350);
+}
+function renderMpg(){
+  const g=document.getElementById('mpg'); g.innerHTML='';
+  pendingMedia.forEach((m,i)=>{
+    const t=document.createElement('div'); t.className='mthumb';
+    t.innerHTML=m.type==='video'?`<video src="${m.dataUrl}" muted playsinline></video>`:`<img src="${m.dataUrl}" alt="">`;
+    const d=document.createElement('button'); d.className='mdel'; d.textContent='×';
+    d.addEventListener('click',e=>{ e.stopPropagation(); pendingMedia.splice(i,1); renderMpg(); });
+    t.appendChild(d); g.appendChild(t);
+  });
+  const a=document.createElement('button'); a.className='madd';
+  a.innerHTML='<span class="madd-icon">🖼️</span><span>사진/영상</span>';
+  a.addEventListener('click',()=>document.getElementById('f-media').click());
+  g.appendChild(a);
+}
+document.getElementById('f-media').addEventListener('change',async function(){
+  for(const f of Array.from(this.files)){
+    const du=await toDataUrl(f);
+    pendingMedia.push({type:f.type.startsWith('video')?'video':'image',dataUrl:du,name:f.name});
+  }
+  this.value=''; renderMpg();
+});
+function toDataUrl(f){ return new Promise(res=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(f); }); }
+function closeWrite(){ document.getElementById('write-modal').classList.remove('open'); editingId=null; pendingMedia=[]; }
+document.getElementById('write-x').addEventListener('click',closeWrite);
+document.getElementById('write-cancel').addEventListener('click',closeWrite);
+document.getElementById('write-modal').addEventListener('click',function(e){ if(e.target===this) closeWrite(); });
+document.getElementById('write-save').addEventListener('click',()=>{
+  const text=document.getElementById('f-text').value.trim();
+  const link=document.getElementById('f-link').value.trim();
+  if(!text&&!link&&!pendingMedia.length){ toast('내용을 입력해주세요 🙏'); return; }
+  const inputPostDate=document.getElementById('f-postdate').value;
+  const data={text,link,platform:document.getElementById('f-platform').value,category:document.getElementById('f-category').value,comment:document.getElementById('f-comment').value.trim(),views:parseInt(document.getElementById('f-views').value)||0,media:[...pendingMedia],postDate:inputPostDate||new Date().toISOString().slice(0,10),repostInterval:parseInt(document.getElementById('f-repost-interval').value)||0};
+  if(editingId){
+    const idx=posts.findIndex(p=>p.id===editingId);
+    if(idx!==-1) posts[idx]={...posts[idx],...data};
+  } else { posts.unshift({id:Date.now().toString(),date:new Date().toISOString(),...data}); }
+  saveLocal(); closeWrite(); refresh(); toast(editingId?'수정 완료! ✅':'저장 완료! 🎉');
+});
+
+// ══ 재게시 박스 렌더 ══════════════════════════════════
+function renderRepostBox(p){
+  const rs=repostStatus(p);
+  const dates=p.repostDates||[];
+  const totalCount=dates.length;
+
+  let statusHtml='';
+  if(rs){
+    if(rs.daysLeft<=0){
+      statusHtml=`<span style="color:#16a34a;font-weight:700">🟢 지금 게시 가능!</span>`;
+    } else {
+      statusHtml=`<span style="color:#d97706;font-weight:700">🟡 다음 게시까지 D-${rs.daysLeft} (${toYMD(rs.nextDate)})</span>`;
+    }
+  }
+
+  const logItems=dates.slice().reverse().map((d,i)=>`
+    <div class="repost-log-item">
+      <span class="rdate">📅 ${d.replaceAll('-','.')}</span>
+      <button class="rdel" data-idx="${dates.length-1-i}" onclick="deleteRepost('${p.id}',${dates.length-1-i})">×</button>
+    </div>
+  `).join('');
+
+  return `
+    <div class="repost-box">
+      <div class="repost-box-title">
+        <span>🔁 재게시 트래커 (${p.repostInterval}일 주기 · ${totalCount}회 게시)</span>
+      </div>
+      ${statusHtml?`<div style="margin-bottom:10px;font-size:13px">${statusHtml}</div>`:''}
+      ${logItems?`<div class="repost-log">${logItems}</div>`:'<div style="font-size:12px;color:var(--sub);margin-bottom:8px">아직 게시 기록이 없어요</div>'}
+      <button class="btn btn-primary btn-sm" style="width:100%" onclick="logRepostToday('${p.id}')">✅ 오늘 게시했어요!</button>
+    </div>
   `;
 }
 
-// ── 더 보기 토글 ──────────────────────────────────────────────────────────────
-function togglePreview(i, fullText) {
-  const el  = document.getElementById(`prev-${i}`);
-  const btn = el.nextElementSibling;
-  if (el.dataset.expanded === '1') {
-    el.textContent = fullText.slice(0, 150);
-    el.dataset.expanded = '';
-    btn.textContent = '더 보기 ▼';
-  } else {
-    el.textContent = fullText;
-    el.dataset.expanded = '1';
-    btn.textContent = '접기 ▲';
+function logRepostToday(id){
+  const p=posts.find(x=>x.id===id); if(!p) return;
+  if(!p.repostDates) p.repostDates=[];
+  const today=new Date().toISOString().slice(0,10);
+  if(p.repostDates[p.repostDates.length-1]===today){ toast('오늘은 이미 기록됐어요 ✅'); return; }
+  p.repostDates.push(today);
+  saveLocal(); openDetail(id); toast('게시 기록 저장! 🎉');
+}
+
+function deleteRepost(id,idx){
+  const p=posts.find(x=>x.id===id); if(!p||!p.repostDates) return;
+  p.repostDates.splice(idx,1);
+  saveLocal(); openDetail(id); toast('기록 삭제됐어요');
+}
+
+// ══ 상세 모달 ══════════════════════════════════════
+function openDetail(id){
+  const p=posts.find(x=>x.id===id); if(!p) return;
+  curDetailId=id;
+  const media=p.media||[];
+  const mhtml=media.length?`<div class="detail-media">${media.map(m=>m.type==='video'?`<video src="${m.dataUrl}" controls playsinline style="width:100%"></video>`:`<img src="${m.dataUrl}" alt="">`).join('')}</div>`:'';
+  const rank=rankOf(id);
+  const rs=rank===1?'🥇 1위':rank===2?'🥈 2위':rank===3?'🥉 3위':rank?`✨ #${rank}위`:'';
+  document.getElementById('detail-content').innerHTML=`
+    <div class="detail-meta">
+      <span style="font-size:24px">${picon(p.platform)}</span>
+      <span class="cat-tag">${esc(p.category||'기타')}</span>
+      <span style="font-size:12px;color:var(--sub)">💾 ${dateLabel(p.date)}</span>
+      ${p.postDate?`<span style="font-size:12px;font-weight:700;color:var(--a2)">📅 게시 ${esc(p.postDate.replaceAll('-','.'))}</span>`:''}
+      ${rs?`<span class="rank-${rank<=3?rank:'n'}">${rs}</span>`:''}
+      <span class="stat" style="margin-left:auto">👁️ ${(p.views||0).toLocaleString()}</span>
+    </div>
+    ${p.link?`<a href="${esc(p.link)}" target="_blank" class="detail-link"><span>🔗</span><span>${esc(p.link)}</span></a>`:''}
+    ${mhtml}
+    ${p.text?`<div class="detail-text">${esc(p.text)}</div>`:''}
+    ${p.comment?`<div class="detail-comment-box"><div class="dc-label">💬 내가 쓴 댓글</div><p>${esc(p.comment)}</p></div>`:''}
+    ${p.repostInterval>0?renderRepostBox(p):''}
+  `;
+  document.getElementById('detail-modal').classList.add('open');
+}
+document.getElementById('detail-close').addEventListener('click',()=>document.getElementById('detail-modal').classList.remove('open'));
+document.getElementById('detail-modal').addEventListener('click',function(e){ if(e.target===this) this.classList.remove('open'); });
+document.getElementById('detail-edit').addEventListener('click',()=>{
+  document.getElementById('detail-modal').classList.remove('open');
+  const p=posts.find(x=>x.id===curDetailId);
+  if(p) setTimeout(()=>openWrite(p),200);
+});
+document.getElementById('detail-delete').addEventListener('click',()=>{
+  if(!confirm('이 게시글을 삭제할까요? 🗑️')) return;
+  posts=posts.filter(p=>p.id!==curDetailId);
+  saveLocal(); document.getElementById('detail-modal').classList.remove('open'); refresh(); toast('삭제됐어요 🌸');
+});
+
+// ══ FAB / 네비 ═════════════════════════════════════
+document.getElementById('fab').addEventListener('click',()=>openWrite(null));
+document.querySelectorAll('.nav-btn').forEach(btn=>btn.addEventListener('click',()=>switchScreen(btn.dataset.screen)));
+function switchScreen(name){
+  curScreen=name;
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.screen===name));
+  if(name==='home') renderHome();
+  else if(name==='category') renderCatGrid();
+  else if(name==='search'){ renderSchips(); doSearch(); }
+  else if(name==='settings') renderSettings();
+}
+function refresh(){ switchScreen(curScreen); }
+
+// ══ JSON 백업 ═══════════════════════════════════════
+document.getElementById('export-btn').addEventListener('click',()=>{
+  const blob=new Blob([JSON.stringify({posts,categories,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`스레드노트_${new Date().toISOString().slice(0,10)}.json`; a.click();
+  URL.revokeObjectURL(url); toast('내보내기 완료! 💾');
+});
+document.getElementById('import-btn').addEventListener('click',()=>document.getElementById('import-file').click());
+document.getElementById('import-file').addEventListener('change',function(){
+  const f=this.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const d=JSON.parse(e.target.result);
+      if(!d.posts) throw 0;
+      if(confirm(`백업 파일에 게시글 ${d.posts.length}개가 있어요.\n불러올까요?`)){
+        posts=d.posts; if(d.categories) categories=d.categories;
+        saveLocal(); refresh(); toast('불러오기 완료! 🎉');
+      }
+    }catch{ toast('파일을 읽을 수 없어요 😢'); }
+  };
+  r.readAsText(f); this.value='';
+});
+
+// ══ 공유 받기 ══════════════════════════════════════
+function handleShare(){
+  const p=new URLSearchParams(location.search);
+  const url=p.get('url')||'',text=p.get('text')||'',title=p.get('title')||'';
+  if(url||text){
+    setTimeout(()=>{
+      openWrite(null);
+      if(url) document.getElementById('f-link').value=url;
+      if(text) document.getElementById('f-text').value=(title?title+'\n':'')+text;
+      if(url.includes('threads.net')) document.getElementById('f-platform').value='threads';
+      else if(url.includes('instagram.com')) document.getElementById('f-platform').value='instagram';
+      else if(url.includes('youtube.com')||url.includes('youtu.be')) document.getElementById('f-platform').value='youtube';
+      history.replaceState({},'','./');
+    },500);
   }
 }
 
-// ── CSV 다운로드 ───────────────────────────────────────────────────────────────
-function downloadCSV() {
-  window.location.href = '/api/download';
+// ══ 토스트 ════════════════════════════════════════
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2400);
 }
 
-// ── 상태 배지 ─────────────────────────────────────────────────────────────────
-function setStatus(type, text) {
-  const el = document.getElementById('status-badge');
-  el.className = 'status-badge ' + type;
-  el.innerHTML = `<span class="dot${type === 'running' ? ' pulse' : ''}"></span> ${text}`;
-}
+// ══ 서비스워커 ════════════════════════════════════
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 
-function toggleBtns(running) {
-  document.getElementById('start-btn').style.display = running ? 'none' : '';
-  document.getElementById('stop-btn').style.display  = running ? ''     : 'none';
-}
-
-// ── 유틸 ──────────────────────────────────────────────────────────────────────
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function num(n) {
-  return Number(n).toLocaleString('ko-KR');
-}
+// ══ 초기화 ════════════════════════════════════════
+loadLocal();
+updateCatSel();
+renderHome();
+handleShare();
 </script>
 </body>
 </html>
