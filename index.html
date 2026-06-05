@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="스레드노트">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <!-- 링크 미리보기 (OG 태그) -->
 <meta property="og:title" content="🌸 스레드 노트">
 <meta property="og:description" content="스레드·인스타·클립 게시글을 한눈에 정리하는 나만의 앱">
@@ -438,6 +439,59 @@ label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weigh
 ::-webkit-scrollbar{width:3px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ══ 구글 드라이브 팝업 ══ */
+#gdrive-popup-overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.5);z-index:500;
+  align-items:center;justify-content:center;
+  padding:24px;backdrop-filter:blur(8px);
+}
+#gdrive-popup-overlay.show{display:flex}
+#gdrive-popup{
+  background:var(--surface);border-radius:28px;
+  border:2px solid color-mix(in srgb,var(--a1) 40%,transparent);
+  padding:32px 24px 24px;max-width:320px;width:100%;
+  position:relative;text-align:center;
+  box-shadow:0 8px 40px color-mix(in srgb,var(--a1) 30%,transparent);
+  animation:popIn .35s cubic-bezier(.34,1.3,.64,1);
+}
+@keyframes popIn{from{transform:scale(.8);opacity:0}to{transform:scale(1);opacity:1}}
+#gdrive-popup-close{
+  position:absolute;top:14px;right:14px;
+  width:28px;height:28px;border-radius:50%;
+  background:var(--card);border:1.5px solid var(--border);
+  color:var(--sub);font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .2s;
+}
+#gdrive-popup-close:hover{background:var(--border)}
+.popup-emoji{font-size:52px;margin-bottom:12px;animation:bounce 1.5s infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.popup-title{font-size:19px;font-weight:900;margin-bottom:8px;
+  background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.popup-desc{font-size:13px;color:var(--sub);line-height:1.7;margin-bottom:20px}
+.popup-desc b{color:var(--text);font-weight:700}
+.popup-connect-btn{
+  width:100%;padding:14px;border-radius:20px;
+  background:var(--grad);color:#fff;border:none;
+  font-size:15px;font-weight:800;cursor:pointer;
+  box-shadow:var(--shadow);transition:transform .2s;margin-bottom:10px;
+}
+.popup-connect-btn:active{transform:scale(.96)}
+.popup-skip{
+  font-size:12px;color:var(--sub);cursor:pointer;
+  text-decoration:underline;background:none;border:none;
+}
+.popup-dots{display:flex;justify-content:center;gap:5px;margin-bottom:16px}
+.popup-dot{width:6px;height:6px;border-radius:50%;background:color-mix(in srgb,var(--a1) 30%,transparent)}
+.popup-dot.active{background:var(--a1);width:18px;border-radius:3px}
+.popup-arrow-hint{margin-top:16px;padding-top:14px;border-top:1px dashed var(--border)}
+.popup-arrow-text{font-size:11px;color:var(--sub);margin-bottom:8px}
+.popup-arrow-row{display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:700;color:var(--a2)}
+.popup-arrow-bounce{font-size:20px;animation:arrowBounce 1s infinite}
+@keyframes arrowBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
 </style>
 </head>
 <body class="theme-black">
@@ -569,6 +623,28 @@ label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weigh
 
       <div class="divider"></div>
 
+      <!-- 구글 드라이브 연동 -->
+      <div class="ss">
+        <div class="ss-title">☁️ 구글 드라이브 자동 저장</div>
+        <div style="background:var(--card);border-radius:18px;border:1.5px solid var(--border);padding:16px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+            <div id="gdot" style="width:10px;height:10px;border-radius:50%;background:#555;flex-shrink:0;transition:background .3s"></div>
+            <div>
+              <div id="gstatus" style="font-size:14px;font-weight:700">연결 안 됨</div>
+              <div id="gsub" style="font-size:11px;color:var(--sub);margin-top:2px">연결하면 게시글이 내 드라이브에 자동 저장돼요</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" id="gdrive-connect-btn">🔗 구글 계정 연결하기</button>
+            <button class="btn btn-ghost btn-sm" id="gdrive-save-btn" style="display:none">💾 지금 저장</button>
+            <button class="btn btn-ghost btn-sm" id="gdrive-load-btn" style="display:none">📥 불러오기</button>
+            <button class="btn btn-danger btn-sm" id="gdrive-disconnect-btn" style="display:none">연결 해제</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
       <div class="ss">
         <div class="ss-title">💾 데이터 백업</div>
         <div class="set-row">
@@ -692,20 +768,50 @@ label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weigh
 
 <div id="toast"></div>
 
+<!-- 구글 드라이브 연결 팝업 -->
+<div id="gdrive-popup-overlay">
+  <div id="gdrive-popup">
+    <button id="gdrive-popup-close">×</button>
+    <div class="popup-emoji">☁️</div>
+    <div class="popup-dots">
+      <div class="popup-dot active"></div>
+      <div class="popup-dot"></div>
+      <div class="popup-dot"></div>
+    </div>
+    <div class="popup-title">구글 드라이브 연동</div>
+    <div class="popup-desc">
+      게시글을 <b>내 구글 드라이브에 자동 저장</b>해요 🌸<br>
+      폰이 바뀌거나 앱을 지워도<br>
+      <b>데이터가 영원히 안전하게 보관</b>돼요!
+    </div>
+    <button class="popup-connect-btn" id="popup-connect-btn">
+      🔗 구글 계정으로 연결하기
+    </button>
+    <button class="popup-skip" id="popup-skip-btn">나중에 할게요</button>
+    <div class="popup-arrow-hint">
+      <div class="popup-arrow-text">또는 설정에서도 연결할 수 있어요</div>
+      <div class="popup-arrow-row">
+        <span class="popup-arrow-icon">⚙️</span>
+        <span class="popup-arrow-label">설정 탭</span>
+        <span class="popup-arrow-bounce">↓</span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ══ 상태 ════════════════════════════════════════════
 let posts=[], categories=['일상','정보','홍보','광고','기타'];
 let editingId=null, pendingMedia=[], curScreen='home';
 let homeSort='date', homeDateFilter=null, homePlatFilter='all';
 let searchCatFilter='all', curDetailId=null, curTheme='black';
-let gdriveConnected=false, gdriveAccessToken=null, gdriveFileId=null, gdriveUserEmail='';
 
 // ══ 로컬 저장 ══════════════════════════════════════
 function saveLocal(){
   localStorage.setItem('tn3_posts', JSON.stringify(posts));
   localStorage.setItem('tn3_cats', JSON.stringify(categories));
   localStorage.setItem('tn3_theme', curTheme);
-  if(gdriveConnected) scheduleDriveSave();
+  scheduleDriveSave();
 }
 function loadLocal(){
   try{ posts=JSON.parse(localStorage.getItem('tn3_posts')||'[]'); }catch(e){ posts=[]; }
@@ -715,178 +821,266 @@ function loadLocal(){
 }
 
 // ══ 구글 드라이브 연동 ═══════════════════════════════
-const DRIVE_FILE_NAME = '스레드노트_data.json';
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
-let driveAutoSaveTimer = null;
+const D_CLIENT_ID = '535138863050-egtp67ej6hsd0am99jtoc4ndeot6fskp.apps.googleusercontent.com';
+const D_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const D_ROOT  = '스레드노트';
+const D_INDEX = 'index.json';
+let dToken=null, dConnected=false, dEmail='', dRootId=null;
+let dSaveTimer=null;
 
-function getClientId(){ return localStorage.getItem('tn3_client_id')||''; }
+// 상태 불러오기
+function loadDriveState(){
+  dToken    = localStorage.getItem('d_token')||null;
+  dEmail    = localStorage.getItem('d_email')||'';
+  dRootId   = localStorage.getItem('d_root')||null;
+  dConnected= !!localStorage.getItem('d_ever');
+}
 
-document.getElementById('client-id-save-btn').addEventListener('click',()=>{
-  const v=document.getElementById('client-id-input').value.trim();
-  localStorage.setItem('tn3_client_id', v);
-  toast('Client ID 저장됐어요 ✅');
-});
+// UI 업데이트
+function updateDriveUI(){
+  const dot=document.getElementById('gdot');
+  const st =document.getElementById('gstatus');
+  const sb =document.getElementById('gsub');
+  const cb =document.getElementById('gdrive-connect-btn');
+  const sv =document.getElementById('gdrive-save-btn');
+  const ld =document.getElementById('gdrive-load-btn');
+  const dc =document.getElementById('gdrive-disconnect-btn');
+  if(!dot) return;
+  if(dConnected){
+    dot.style.background='#22c55e';
+    st.textContent='연결됨 ✅';
+    sb.textContent=(dEmail||'구글 계정')+' → 📁 스레드노트 폴더에 저장';
+    cb.style.display='none'; sv.style.display=''; ld.style.display=''; dc.style.display='';
+  } else {
+    dot.style.background='#555';
+    st.textContent='연결 안 됨';
+    sb.textContent='연결하면 사진·영상 파일로 드라이브에 자동 저장돼요';
+    cb.style.display=''; sv.style.display='none'; ld.style.display='none'; dc.style.display='none';
+  }
+}
 
 document.getElementById('gdrive-connect-btn').addEventListener('click', connectDrive);
 document.getElementById('gdrive-disconnect-btn').addEventListener('click', disconnectDrive);
-document.getElementById('gdrive-save-btn').addEventListener('click', saveToDrive);
+document.getElementById('gdrive-save-btn').addEventListener('click', ()=>saveToDrive(false));
 document.getElementById('gdrive-load-btn').addEventListener('click', loadFromDrive);
 
+// ── 연결 ─────────────────────────────────────────
 function connectDrive(){
-  const clientId=getClientId();
-  if(!clientId){
-    toast('먼저 Client ID를 입력·저장해주세요 🙏');
-    document.getElementById('client-id-input').focus();
-    return;
-  }
   try{
     const client = google.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: DRIVE_SCOPE,
-      callback: async (resp) => {
-        if(resp.error){ toast('연결 실패: '+resp.error); return; }
-        gdriveAccessToken = resp.access_token;
-        gdriveConnected = true;
-        localStorage.setItem('tn3_drive_token', gdriveAccessToken);
-        await fetchUserInfo();
-        await findOrCreateFile();
+      client_id: D_CLIENT_ID, scope: D_SCOPE,
+      callback: async(resp)=>{
+        if(resp.error){ toast('연결 실패 😢'); return; }
+        dToken=resp.access_token; dConnected=true;
+        localStorage.setItem('d_token',dToken);
+        localStorage.setItem('d_ever','1');
+        localStorage.setItem('tn_ever_connected','1');
+        try{
+          const r=await fetch('https://www.googleapis.com/oauth2/v2/userinfo',{headers:{Authorization:'Bearer '+dToken}});
+          const d=await r.json(); dEmail=d.email||'';
+          localStorage.setItem('d_email',dEmail);
+        }catch(e){}
+        toast('☁️ 연결됐어요! 전체 저장 중... (사진·영상 포함)');
+        await ensureRootFolder();
+        await saveToDrive(true);
         updateDriveUI();
-        toast('구글 드라이브 연결됐어요! ☁️');
+        toast('🎉 드라이브에 전부 저장 완료!');
       }
     });
     client.requestAccessToken();
-  }catch(e){
-    toast('Google API 로드 중... 잠시 후 다시 시도해주세요');
-  }
+  }catch(e){ toast('잠시 후 다시 시도해주세요'); }
 }
 
-async function fetchUserInfo(){
-  try{
-    const r = await fetch('https://www.googleapis.com/oauth2/v2/userinfo',{
-      headers:{Authorization:'Bearer '+gdriveAccessToken}
-    });
-    const d = await r.json();
-    gdriveUserEmail = d.email||'';
-    localStorage.setItem('tn3_drive_email', gdriveUserEmail);
-  }catch(e){}
-}
-
-async function findOrCreateFile(){
-  // 기존 파일 검색
-  const q = encodeURIComponent(`name='${DRIVE_FILE_NAME}' and trashed=false`);
-  const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`,{
-    headers:{Authorization:'Bearer '+gdriveAccessToken}
-  });
-  const d = await r.json();
-  if(d.files && d.files.length>0){
-    gdriveFileId = d.files[0].id;
-    localStorage.setItem('tn3_drive_file_id', gdriveFileId);
+// ── 루트 폴더 📁스레드노트 확보 ──────────────────────
+async function ensureRootFolder(){
+  if(dRootId) return;
+  const q=encodeURIComponent(`name='${D_ROOT}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`,{headers:{Authorization:'Bearer '+dToken}});
+  const d=await r.json();
+  if(d.files&&d.files.length>0){
+    dRootId=d.files[0].id;
   } else {
-    // 새 파일 생성
-    await saveToDrive(true);
-  }
-}
-
-async function saveToDrive(silent=false){
-  if(!gdriveConnected||!gdriveAccessToken){ toast('드라이브 미연결 상태예요 🙏'); return; }
-  const data = JSON.stringify({posts,categories,savedAt:new Date().toISOString()},null,2);
-  const blob = new Blob([data],{type:'application/json'});
-
-  try{
-    let res;
-    if(gdriveFileId){
-      // 기존 파일 업데이트
-      res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${gdriveFileId}?uploadType=media`,{
-        method:'PATCH',
-        headers:{Authorization:'Bearer '+gdriveAccessToken,'Content-Type':'application/json'},
-        body:data
-      });
-    } else {
-      // 새 파일 생성
-      const form = new FormData();
-      form.append('metadata', new Blob([JSON.stringify({name:DRIVE_FILE_NAME,mimeType:'application/json'})],{type:'application/json'}));
-      form.append('file', blob);
-      res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{
-        method:'POST',
-        headers:{Authorization:'Bearer '+gdriveAccessToken},
-        body:form
-      });
-      const rd = await res.json();
-      gdriveFileId = rd.id;
-      localStorage.setItem('tn3_drive_file_id', gdriveFileId);
-    }
-    if(!silent) toast('☁️ 드라이브에 저장됐어요!');
-  }catch(e){
-    if(!silent) toast('저장 실패 😢 토큰이 만료됐을 수 있어요');
-  }
-}
-
-async function loadFromDrive(){
-  if(!gdriveConnected||!gdriveAccessToken||!gdriveFileId){ toast('드라이브에 저장된 파일이 없어요'); return; }
-  try{
-    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${gdriveFileId}?alt=media`,{
-      headers:{Authorization:'Bearer '+gdriveAccessToken}
+    const res=await fetch('https://www.googleapis.com/drive/v3/files',{
+      method:'POST',headers:{Authorization:'Bearer '+dToken,'Content-Type':'application/json'},
+      body:JSON.stringify({name:D_ROOT,mimeType:'application/vnd.google-apps.folder'})
     });
-    const d = await r.json();
-    if(!d.posts) throw new Error();
-    if(confirm(`드라이브에서 게시글 ${d.posts.length}개를 불러올까요?\n(현재 데이터 대체)`)){
-      posts=d.posts;
-      if(d.categories) categories=d.categories;
-      saveLocal();
-      refresh();
-      toast('☁️ 드라이브에서 불러왔어요!');
-    }
-  }catch(e){
-    toast('불러오기 실패 😢');
+    dRootId=(await res.json()).id;
   }
+  localStorage.setItem('d_root',dRootId);
+}
+
+// ── base64 → Blob 변환 ─────────────────────────────
+function b64toBlob(b64){
+  const [head,data]=b64.split(',');
+  const mime=head.match(/:(.*?);/)[1];
+  const bin=atob(data);
+  const arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  return {blob:new Blob([arr],{type:mime}),mime,ext:mime.split('/')[1].replace('jpeg','jpg').replace('quicktime','mov')};
+}
+
+// ── 드라이브 파일 업로드 헬퍼 ─────────────────────────
+async function driveUpload(name,blob,mime,parentId){
+  const form=new FormData();
+  form.append('metadata',new Blob([JSON.stringify({name,mimeType:mime,parents:[parentId]})],{type:'application/json'}));
+  form.append('file',blob);
+  const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{
+    method:'POST',headers:{Authorization:'Bearer '+dToken},body:form
+  });
+  return (await r.json()).id;
+}
+
+// ── 드라이브 파일 업데이트 헬퍼 ───────────────────────
+async function driveUpdate(fileId,blob,mime){
+  await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,{
+    method:'PATCH',headers:{Authorization:'Bearer '+dToken,'Content-Type':mime},body:blob
+  });
+}
+
+// ── 게시글 1개 저장 ────────────────────────────────
+async function savePostToDrive(post){
+  if(!dRootId) return;
+  const d=new Date(post.postDate||post.date);
+  const ymd=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  const folderName=`${ymd}_${post.category||'기타'}_${post.id.slice(-4)}`;
+
+  // 게시글 폴더 찾거나 만들기
+  let folderId = post.dFolderId||null;
+  if(!folderId){
+    const q=encodeURIComponent(`name='${folderName}' and '${dRootId}' in parents and trashed=false`);
+    const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`,{headers:{Authorization:'Bearer '+dToken}});
+    const fd=await r.json();
+    if(fd.files&&fd.files.length>0){
+      folderId=fd.files[0].id;
+    } else {
+      const res=await fetch('https://www.googleapis.com/drive/v3/files',{
+        method:'POST',headers:{Authorization:'Bearer '+dToken,'Content-Type':'application/json'},
+        body:JSON.stringify({name:folderName,mimeType:'application/vnd.google-apps.folder',parents:[dRootId]})
+      });
+      folderId=(await res.json()).id;
+    }
+    post.dFolderId=folderId;
+  }
+
+  // 내용.txt 저장
+  const txtContent=[
+    `📅 게시일: ${post.postDate||post.date.slice(0,10)}`,
+    `📱 플랫폼: ${post.platform||''}`,
+    `📂 카테고리: ${post.category||''}`,
+    `👁️ 조회수: ${(post.views||0).toLocaleString()}`,
+    `🔗 링크: ${post.link||'없음'}`,
+    ``,
+    `📝 내용:`,
+    post.text||'',
+    post.comment?`\n💬 내 댓글:\n${post.comment}`:''
+  ].join('\n');
+
+  const txtBlob=new Blob([txtContent],{type:'text/plain'});
+  if(post.dTxtId){
+    await driveUpdate(post.dTxtId,txtBlob,'text/plain');
+  } else {
+    post.dTxtId=await driveUpload('내용.txt',txtBlob,'text/plain',folderId);
+  }
+
+  // 사진·영상 업로드
+  const media=post.media||[];
+  const mediaIds=post.dMediaIds||[];
+  for(let i=0;i<media.length;i++){
+    const m=media[i];
+    if(!m.dataUrl) continue;
+    try{
+      const {blob,mime,ext}=b64toBlob(m.dataUrl);
+      const fname=`${m.type==='video'?'영상':'사진'}${i+1}.${ext}`;
+      if(mediaIds[i]){
+        await driveUpdate(mediaIds[i],blob,mime);
+      } else {
+        mediaIds[i]=await driveUpload(fname,blob,mime,folderId);
+      }
+    }catch(e){}
+  }
+  post.dMediaIds=mediaIds;
+}
+
+// ── 전체 저장 ──────────────────────────────────────
+async function saveToDrive(silent=false){
+  if(!dConnected||!dToken){ if(!silent) toast('드라이브 미연결 상태예요'); return; }
+  await ensureRootFolder();
+  try{
+    // 각 게시글 폴더에 저장
+    for(let i=0;i<posts.length;i++){
+      const p=posts[i];
+      if((p.media&&p.media.length>0)||!p.dFolderId){
+        await savePostToDrive(p);
+      }
+    }
+    // index.json (base64 제외한 메타데이터)
+    const meta=posts.map(p=>({...p,media:(p.media||[]).map((m,i)=>({type:m.type,name:m.name,driveId:p.dMediaIds?.[i]||null}))}));
+    const indexBlob=new Blob([JSON.stringify({posts:meta,categories,savedAt:new Date().toISOString()},null,2)],{type:'application/json'});
+    // index.json 파일 찾거나 업로드
+    let indexId=localStorage.getItem('d_index')||null;
+    if(indexId){
+      await driveUpdate(indexId,indexBlob,'application/json');
+    } else {
+      const q=encodeURIComponent(`name='${D_INDEX}' and '${dRootId}' in parents and trashed=false`);
+      const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`,{headers:{Authorization:'Bearer '+dToken}});
+      const fd=await r.json();
+      if(fd.files&&fd.files.length>0){
+        indexId=fd.files[0].id;
+        await driveUpdate(indexId,indexBlob,'application/json');
+      } else {
+        indexId=await driveUpload(D_INDEX,indexBlob,'application/json',dRootId);
+      }
+      localStorage.setItem('d_index',indexId);
+    }
+    saveLocal(); // dFolderId, dMediaIds 등 로컬에 반영
+    if(!silent) toast('☁️ 드라이브에 저장됐어요!');
+  }catch(e){ if(!silent) toast('저장 실패 😢 다시 연결해보세요'); }
+}
+
+// ── 드라이브에서 불러오기 ──────────────────────────
+async function loadFromDrive(){
+  if(!dConnected||!dToken){ toast('드라이브 미연결 상태예요'); return; }
+  await ensureRootFolder();
+  try{
+    const indexId=localStorage.getItem('d_index');
+    if(!indexId){ toast('드라이브에 저장된 파일이 없어요'); return; }
+    const r=await fetch(`https://www.googleapis.com/drive/v3/files/${indexId}?alt=media`,{headers:{Authorization:'Bearer '+dToken}});
+    const d=await r.json();
+    if(!d.posts) throw 0;
+    if(!confirm(`드라이브에서 게시글 ${d.posts.length}개를 불러올까요?\n(현재 데이터 대체)`)) return;
+    toast('📥 사진·영상 불러오는 중...');
+    // 미디어 파일 다운로드 → base64 복원
+    for(const p of d.posts){
+      const newMedia=[];
+      for(const m of (p.media||[])){
+        if(m.driveId){
+          try{
+            const mr=await fetch(`https://www.googleapis.com/drive/v3/files/${m.driveId}?alt=media`,{headers:{Authorization:'Bearer '+dToken}});
+            const blob=await mr.blob();
+            const b64=await new Promise(res=>{const fr=new FileReader();fr.onload=e=>res(e.target.result);fr.readAsDataURL(blob);});
+            newMedia.push({type:m.type,name:m.name,dataUrl:b64});
+          }catch(e){ newMedia.push(m); }
+        }
+      }
+      p.media=newMedia;
+    }
+    posts=d.posts; if(d.categories) categories=d.categories;
+    saveLocal(); refresh(); toast('☁️ 드라이브에서 불러왔어요! 🎉');
+  }catch(e){ toast('불러오기 실패 😢'); }
 }
 
 function scheduleDriveSave(){
-  clearTimeout(driveAutoSaveTimer);
-  driveAutoSaveTimer = setTimeout(()=>saveToDrive(true), 3000);
+  if(!dConnected) return;
+  clearTimeout(dSaveTimer);
+  dSaveTimer=setTimeout(()=>saveToDrive(true),5000);
 }
 
 function disconnectDrive(){
-  gdriveConnected=false; gdriveAccessToken=null; gdriveFileId=null; gdriveUserEmail='';
-  localStorage.removeItem('tn3_drive_token');
-  localStorage.removeItem('tn3_drive_file_id');
-  localStorage.removeItem('tn3_drive_email');
-  updateDriveUI();
-  toast('연결 해제됐어요');
+  dConnected=false; dToken=null; dRootId=null; dEmail='';
+  ['d_token','d_email','d_root','d_index','d_ever'].forEach(k=>localStorage.removeItem(k));
+  updateDriveUI(); toast('연결 해제됐어요');
 }
 
-function updateDriveUI(){
-  const dot=document.getElementById('gdrive-dot');
-  const stxt=document.getElementById('gdrive-status-text');
-  const ssub=document.getElementById('gdrive-status-sub');
-  const connectBtn=document.getElementById('gdrive-connect-btn');
-  const saveBtn=document.getElementById('gdrive-save-btn');
-  const loadBtn=document.getElementById('gdrive-load-btn');
-  const discBtn=document.getElementById('gdrive-disconnect-btn');
-  const guide=document.getElementById('gdrive-guide');
-
-  if(gdriveConnected){
-    dot.classList.add('connected');
-    stxt.textContent='연결됨 ✅';
-    ssub.textContent=gdriveUserEmail||'연결된 계정';
-    connectBtn.style.display='none';
-    saveBtn.style.display='';
-    loadBtn.style.display='';
-    discBtn.style.display='';
-    guide.style.display='none';
-  } else {
-    dot.classList.remove('connected');
-    stxt.textContent='연결 안 됨';
-    ssub.textContent='연결하면 자동으로 내 드라이브에 저장돼요';
-    connectBtn.style.display='';
-    saveBtn.style.display='none';
-    loadBtn.style.display='none';
-    discBtn.style.display='none';
-    guide.style.display='';
-    const savedId=localStorage.getItem('tn3_client_id');
-    if(savedId) document.getElementById('client-id-input').value=savedId;
-  }
-}
 
 // ══ 테마 ════════════════════════════════════════════
 const THEMES={
@@ -1401,14 +1595,61 @@ function toast(msg){
   clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2400);
 }
 
-// ══ 서비스워커 ════════════════════════════════════
-if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+// ══ 서비스워커 + 자동 업데이트 ══════════════════════
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/thread-note/sw.js').then(reg => {
+    // 새 버전 감지 → 자동 새로고침
+    reg.addEventListener('updatefound', () => {
+      const newSW = reg.installing;
+      newSW.addEventListener('statechange', () => {
+        if(newSW.state === 'installed' && navigator.serviceWorker.controller){
+          newSW.postMessage('skipWaiting');
+        }
+      });
+    });
+  }).catch(()=>{});
+  // 새 SW 활성화되면 자동 새로고침
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  });
+}
+
+// ══ 구글 드라이브 팝업 ══════════════════════════════
+function showDrivePopup(){
+  document.getElementById('gdrive-popup-overlay').classList.add('show');
+}
+function hideDrivePopup(){
+  document.getElementById('gdrive-popup-overlay').classList.remove('show');
+}
+document.getElementById('gdrive-popup-close').addEventListener('click', ()=>{
+  hideDrivePopup();
+  localStorage.setItem('tn_popup_dismissed','1');
+});
+document.getElementById('popup-skip-btn').addEventListener('click', ()=>{
+  hideDrivePopup();
+  localStorage.setItem('tn_popup_dismissed','1');
+});
+document.getElementById('popup-connect-btn').addEventListener('click', ()=>{
+  hideDrivePopup();
+  connectDrive();
+});
 
 // ══ 초기화 ════════════════════════════════════════
 loadLocal();
+loadDriveState();   // 드라이브 연결 상태 복원
+updateDriveUI();
 updateCatSel();
 renderHome();
 handleShare();
+
+// 구글 연결한 적 없고, 닫은 적도 없으면 2초 후 팝업
+setTimeout(()=>{
+  const everConnected = localStorage.getItem('tn_ever_connected');
+  const dismissed = localStorage.getItem('tn_popup_dismissed');
+  if(!everConnected && !dismissed){
+    showDrivePopup();
+  }
+}, 2000);
 </script>
 </body>
 </html>
