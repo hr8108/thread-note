@@ -1027,12 +1027,11 @@ function saveLocal(){
       // IDB 저장: iOS 영상=Blob, 나머지=dataUrl 그대로
       const idbMedia=media.map(m=>{
         if(m.type==='video'&&m.blob instanceof Blob)
-          return {type:'video',name:m.name||'',blob:m.blob};
-        // blob 없는 일반 항목 (Android 영상 base64, 이미지 등)
-        return {type:m.type,name:m.name||'',dataUrl:m.dataUrl||''};
+          return {type:'video',name:m.name||'',blob:m.blob,thumb:m.thumb||null};
+        return {type:m.type,name:m.name||'',dataUrl:m.dataUrl||'',thumb:m.thumb||null};
       });
       idbPut('pm_'+p.id, idbMedia);
-      return {...p, media:media.map(m=>({type:m.type,name:m.name||'',dataUrl:'__idb__'}))};
+      return {...p, media:media.map(m=>({type:m.type,name:m.name||'',dataUrl:'__idb__',thumb:m.thumb||null}))};
     }
     return p;
   });
@@ -1063,11 +1062,9 @@ async function restoreMediaFromIDB(){
     const restored=idbMedia.map(m=>{
       if(m.type==='video'){
         if(m.blob instanceof Blob){
-          // iOS 방식: Blob → 새 objectURL 생성
-          return {type:'video',name:m.name||'',dataUrl:URL.createObjectURL(m.blob),blob:m.blob};
+          return {type:'video',name:m.name||'',dataUrl:URL.createObjectURL(m.blob),blob:m.blob,thumb:m.thumb||null};
         }
         if(m.dataUrl&&m.dataUrl.startsWith('data:')&&_isIOS){
-          // iOS에서 Drive 동기화로 base64 영상을 받은 경우 → blob으로 변환
           try{
             const parts=m.dataUrl.split(',');
             const mime=(parts[0].match(/:(.*?);/)||[])[1]||'video/mp4';
@@ -1075,13 +1072,12 @@ async function restoreMediaFromIDB(){
             const arr=new Uint8Array(bin.length);
             for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
             const blob=new Blob([arr],{type:mime});
-            return {type:'video',name:m.name||'',dataUrl:URL.createObjectURL(blob),blob};
-          }catch(e){ return m; }
+            return {type:'video',name:m.name||'',dataUrl:URL.createObjectURL(blob),blob,thumb:m.thumb||null};
+          }catch(e){ return {...m,thumb:m.thumb||null}; }
         }
-        // Android/PC: base64 dataUrl 그대로 사용
-        return m;
+        return {...m,thumb:m.thumb||null};
       }
-      return m; // 이미지
+      return m;
     });
     return {...p,media:restored};
   });
@@ -1157,33 +1153,36 @@ async function refreshTokenSilently(){
   });
 }
 
-// UI 업데이트
+// UI 업데이트 (동일 id 버튼 여러 개 모두 제어)
 function updateDriveUI(){
   const dot=document.getElementById('gdot');
   const st =document.getElementById('gstatus');
   const sb =document.getElementById('gsub');
-  const cb =document.getElementById('gdrive-connect-btn');
-  const sv =document.getElementById('gdrive-save-btn');
-  const ld =document.getElementById('gdrive-load-btn');
-  const dc =document.getElementById('gdrive-disconnect-btn');
   if(!dot) return;
+  const all=id=>Array.from(document.querySelectorAll('#'+id));
   if(dConnected){
     dot.style.background='#22c55e';
-    st.textContent='연결됨 ✅';
-    sb.textContent=(dEmail||'구글 계정')+' → 📁 스레드노트 폴더에 저장';
-    cb.style.display='none'; sv.style.display=''; ld.style.display=''; dc.style.display='';
+    if(st) st.textContent='연결됨 ✅';
+    if(sb) sb.textContent=(dEmail||'구글 계정')+' → 📁 스레드노트 폴더에 저장';
+    all('gdrive-connect-btn').forEach(b=>b.style.display='none');
+    all('gdrive-save-btn').forEach(b=>b.style.display='');
+    all('gdrive-load-btn').forEach(b=>b.style.display='');
+    all('gdrive-disconnect-btn').forEach(b=>b.style.display='');
   } else {
     dot.style.background='#555';
-    st.textContent='연결 안 됨';
-    sb.textContent='연결하면 사진·영상 파일로 드라이브에 자동 저장돼요';
-    cb.style.display=''; sv.style.display='none'; ld.style.display='none'; dc.style.display='none';
+    if(st) st.textContent='연결 안 됨';
+    if(sb) sb.textContent='연결하면 사진·영상 파일로 드라이브에 자동 저장돼요';
+    all('gdrive-connect-btn').forEach(b=>b.style.display='');
+    all('gdrive-save-btn').forEach(b=>b.style.display='none');
+    all('gdrive-load-btn').forEach(b=>b.style.display='none');
+    all('gdrive-disconnect-btn').forEach(b=>b.style.display='none');
   }
 }
 
-document.getElementById('gdrive-connect-btn').addEventListener('click', connectDrive);
-document.getElementById('gdrive-disconnect-btn').addEventListener('click', disconnectDrive);
-document.getElementById('gdrive-save-btn').addEventListener('click', ()=>saveToDrive(false));
-document.getElementById('gdrive-load-btn').addEventListener('click', loadFromDrive);
+document.querySelectorAll('#gdrive-connect-btn').forEach(b=>b.addEventListener('click',connectDrive));
+document.querySelectorAll('#gdrive-disconnect-btn').forEach(b=>b.addEventListener('click',disconnectDrive));
+document.querySelectorAll('#gdrive-save-btn').forEach(b=>b.addEventListener('click',()=>saveToDrive(false)));
+document.querySelectorAll('#gdrive-load-btn').forEach(b=>b.addEventListener('click',loadFromDrive));
 
 // ── iOS PWA / 브라우저 감지 ───────────────────────
 function isIOSPWA(){
@@ -1686,7 +1685,9 @@ function renderCard(p){
     for(let i=0;i<show;i++){
       const m=media[i];
       mhtml+=`<div class="mi">${m.type==='video'
-        ?`<div class="vid-ph"><span class="vid-ph-icon">🎬</span><span class="vid-ph-txt">영상</span></div>`
+        ?(m.thumb
+          ?`<img src="${m.thumb}" loading="lazy" alt="영상"><div class="vid-play-ov">▶</div>`
+          :`<div class="vid-ph"><span class="vid-ph-icon">🎬</span><span class="vid-ph-txt">영상</span></div>`)
         :`<img src="${m.dataUrl}" loading="lazy" alt="">`
       }</div>`;
     }
@@ -1878,10 +1879,18 @@ function renderMpg(){
   pendingMedia.forEach((m,i)=>{
     const t=document.createElement('div'); t.className='mthumb';
     if(m.type==='video'){
-      // iOS/Android 모두 <video> 썸네일 검게 나오는 문제 → 🎬 플레이스홀더 사용
-      const ph=document.createElement('div'); ph.className='vid-ph';
-      ph.innerHTML='<span class="vid-ph-icon">🎬</span><span class="vid-ph-txt">영상</span>';
-      t.appendChild(ph);
+      if(m.thumb){
+        // 썸네일 캡처 성공 → 이미지로 표시 + ▶ 오버레이
+        const img=document.createElement('img'); img.src=m.thumb; img.alt='영상';
+        img.style.cssText='width:100%;height:100%;object-fit:cover;';
+        const ov=document.createElement('div'); ov.className='vid-play-ov'; ov.textContent='▶';
+        t.appendChild(img); t.appendChild(ov);
+      } else {
+        // 썸네일 캡처 실패 → 🎬 플레이스홀더
+        const ph=document.createElement('div'); ph.className='vid-ph';
+        ph.innerHTML='<span class="vid-ph-icon">🎬</span><span class="vid-ph-txt">영상</span>';
+        t.appendChild(ph);
+      }
     } else {
       const img=document.createElement('img'); img.src=m.dataUrl; img.alt='';
       t.appendChild(img);
@@ -1905,16 +1914,19 @@ document.getElementById('f-media').addEventListener('change',async function(){
       if(_isIOS){
         // iOS: data URL 영상 재생 불가 → blob objectURL 사용
         const objUrl=URL.createObjectURL(f);
-        pendingMedia.push({type:'video',dataUrl:objUrl,blob:f,name:f.name||'영상'});
+        const thumb=await captureVideoThumb(objUrl);
+        pendingMedia.push({type:'video',dataUrl:objUrl,blob:f,name:f.name||'영상',thumb});
       } else {
         // Android/PC: base64 변환 (정상 재생됨)
         const du=await toDataUrl(f);
         if(du){
-          pendingMedia.push({type:'video',dataUrl:du,name:f.name||'영상'});
+          const thumb=await captureVideoThumb(du);
+          pendingMedia.push({type:'video',dataUrl:du,name:f.name||'영상',thumb});
         } else {
           // base64 실패 시 blob fallback (대용량 영상 대비)
           const objUrl=URL.createObjectURL(f);
-          pendingMedia.push({type:'video',dataUrl:objUrl,blob:f,name:f.name||'영상'});
+          const thumb=await captureVideoThumb(objUrl);
+          pendingMedia.push({type:'video',dataUrl:objUrl,blob:f,name:f.name||'영상',thumb});
           toast('📹 영상 추가됨 (대용량)');
         }
       }
@@ -1932,10 +1944,33 @@ function toDataUrl(f){
     r.onload=e=>res(e.target.result);
     r.onerror=()=>res(null);
     r.onabort=()=>res(null);
-    // 대용량 파일 타임아웃 (30초)
     const timer=setTimeout(()=>{r.abort();},30000);
     r.onloadend=()=>clearTimeout(timer);
     r.readAsDataURL(f);
+  });
+}
+// 영상 첫 프레임 썸네일 캡처 (canvas)
+function captureVideoThumb(src){
+  return new Promise(res=>{
+    const v=document.createElement('video');
+    v.src=src; v.muted=true; v.playsInline=true; v.preload='auto';
+    v.style.cssText='position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;top:-9999px';
+    document.body.appendChild(v);
+    const cleanup=()=>{ try{v.remove();}catch(e){} };
+    const timer=setTimeout(()=>{ cleanup(); res(null); },8000);
+    const draw=()=>{
+      clearTimeout(timer);
+      try{
+        const W=Math.min(v.videoWidth||320,480), H=Math.min(v.videoHeight||270,360);
+        const c=document.createElement('canvas'); c.width=W; c.height=H;
+        c.getContext('2d').drawImage(v,0,0,W,H);
+        cleanup(); res(c.toDataURL('image/jpeg',0.7));
+      }catch(e){ cleanup(); res(null); }
+    };
+    v.addEventListener('seeked',draw,{once:true});
+    v.addEventListener('error',()=>{ clearTimeout(timer); cleanup(); res(null); },{once:true});
+    v.addEventListener('loadeddata',()=>{ try{ v.currentTime=0.5; }catch(e){ draw(); } },{once:true});
+    v.load();
   });
 }
 function closeWrite(){ document.getElementById('write-modal').classList.remove('open'); editingId=null; pendingMedia=[]; }
