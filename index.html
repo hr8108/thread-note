@@ -1016,15 +1016,16 @@ function saveLocal(){
   const slim=posts.map(p=>{
     const media=p.media||[];
     const needsIdb=media.some(m=>
-      (m.blob instanceof Blob) ||                                          // 영상 Blob (iOS)
-      (m.dataUrl&&m.dataUrl.length>200&&!m.dataUrl.startsWith('__idb__')) // 이미지 base64
+      (m.blob instanceof Blob) ||  // iOS 영상 Blob
+      (m.dataUrl&&m.dataUrl.length>200&&!m.dataUrl.startsWith('__idb__')) // base64
     );
     if(needsIdb){
-      // IDB에 저장: 이미지는 dataUrl, 영상은 Blob 그대로
+      // IDB 저장: iOS 영상=Blob, 나머지=dataUrl 그대로
       const idbMedia=media.map(m=>{
         if(m.type==='video'&&m.blob instanceof Blob)
           return {type:'video',name:m.name||'',blob:m.blob};
-        return m;
+        // blob 없는 일반 항목 (Android 영상 base64, 이미지 등)
+        return {type:m.type,name:m.name||'',dataUrl:m.dataUrl||''};
       });
       idbPut('pm_'+p.id, idbMedia);
       return {...p, media:media.map(m=>({type:m.type,name:m.name||'',dataUrl:'__idb__'}))};
@@ -1055,12 +1056,28 @@ async function restoreMediaFromIDB(){
   posts=posts.map(p=>{
     const idbMedia=all['pm_'+p.id];
     if(!idbMedia) return p;
-    // 영상 Blob → objectURL 복원 (iOS/Android 모두 재생 가능)
     const restored=idbMedia.map(m=>{
-      if(m.type==='video'&&m.blob instanceof Blob){
-        return {type:'video',name:m.name||'',dataUrl:URL.createObjectURL(m.blob),blob:m.blob};
+      if(m.type==='video'){
+        if(m.blob instanceof Blob){
+          // iOS 방식: Blob → 새 objectURL 생성
+          return {type:'video',name:m.name||'',dataUrl:URL.createObjectURL(m.blob),blob:m.blob};
+        }
+        if(m.dataUrl&&m.dataUrl.startsWith('data:')&&_isIOS){
+          // iOS에서 Drive 동기화로 base64 영상을 받은 경우 → blob으로 변환
+          try{
+            const parts=m.dataUrl.split(',');
+            const mime=(parts[0].match(/:(.*?);/)||[])[1]||'video/mp4';
+            const bin=atob(parts[1]);
+            const arr=new Uint8Array(bin.length);
+            for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+            const blob=new Blob([arr],{type:mime});
+            return {type:'video',name:m.name||'',dataUrl:URL.createObjectURL(blob),blob};
+          }catch(e){ return m; }
+        }
+        // Android/PC: base64 dataUrl 그대로 사용
+        return m;
       }
-      return m;
+      return m; // 이미지
     });
     return {...p,media:restored};
   });
@@ -1788,14 +1805,29 @@ function renderMpg(){
   a.addEventListener('click',()=>document.getElementById('f-media').click());
   g.appendChild(a);
 }
+// 플랫폼 감지
+const _isIOS=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+
 document.getElementById('f-media').addEventListener('change',async function(){
   for(const f of Array.from(this.files)){
     const isVideo=f.type.startsWith('video')||/\.(mov|mp4|m4v|avi|mkv|webm|3gp|hevc)$/i.test(f.name||'');
     if(isVideo){
-      // iOS 대응: 영상은 base64 변환 안 하고 Blob 직접 저장
-      // data URL 방식은 iOS Safari에서 재생 불가
-      const objUrl=URL.createObjectURL(f);
-      pendingMedia.push({type:'video',dataUrl:objUrl,blob:f,name:f.name||'영상'});
+      if(_isIOS){
+        // iOS: data URL 영상 재생 불가 → blob objectURL 사용
+        const objUrl=URL.createObjectURL(f);
+        pendingMedia.push({type:'video',dataUrl:objUrl,blob:f,name:f.name||'영상'});
+      } else {
+        // Android/PC: base64 변환 (정상 재생됨)
+        const du=await toDataUrl(f);
+        if(du){
+          pendingMedia.push({type:'video',dataUrl:du,name:f.name||'영상'});
+        } else {
+          // base64 실패 시 blob fallback (대용량 영상 대비)
+          const objUrl=URL.createObjectURL(f);
+          pendingMedia.push({type:'video',dataUrl:objUrl,blob:f,name:f.name||'영상'});
+          toast('📹 영상 추가됨 (대용량)');
+        }
+      }
     } else {
       const du=await toDataUrl(f);
       if(du) pendingMedia.push({type:'image',dataUrl:du,name:f.name||'이미지'});
@@ -1808,8 +1840,11 @@ function toDataUrl(f){
   return new Promise(res=>{
     const r=new FileReader();
     r.onload=e=>res(e.target.result);
-    r.onerror=()=>res(null);   // iOS에서 실패해도 멈추지 않음
+    r.onerror=()=>res(null);
     r.onabort=()=>res(null);
+    // 대용량 파일 타임아웃 (30초)
+    const timer=setTimeout(()=>{r.abort();},30000);
+    r.onloadend=()=>clearTimeout(timer);
     r.readAsDataURL(f);
   });
 }
