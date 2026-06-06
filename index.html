@@ -1094,6 +1094,8 @@ const D_ROOT  = '스레드노트';
 const D_INDEX = 'index.json';
 let dToken=null, dConnected=false, dEmail='', dRootId=null;
 let dSaveTimer=null;
+let dTokenExpiry=0; // 토큰 만료 시각 (ms)
+let dTokenClient=null; // GIS 토큰 클라이언트 (자동갱신용)
 
 // 상태 불러오기
 function loadDriveState(){
@@ -1101,6 +1103,58 @@ function loadDriveState(){
   dEmail    = localStorage.getItem('d_email')||'';
   dRootId   = localStorage.getItem('d_root')||null;
   dConnected= !!localStorage.getItem('d_ever');
+  dTokenExpiry = parseInt(localStorage.getItem('d_expiry')||'0');
+}
+
+// 토큰 저장 (만료 시각 포함)
+function saveDriveToken(token, expiresIn=3599){
+  dToken=token;
+  dTokenExpiry=Date.now()+(expiresIn-60)*1000; // 60초 여유
+  localStorage.setItem('d_token',token);
+  localStorage.setItem('d_expiry',String(dTokenExpiry));
+}
+
+// GIS 토큰 클라이언트 초기화 (Android/PC용 자동갱신)
+function initTokenClient(){
+  if(typeof google==='undefined'||!google.accounts||dTokenClient) return;
+  dTokenClient=google.accounts.oauth2.initTokenClient({
+    client_id:D_CLIENT_ID, scope:D_SCOPE,
+    callback:(resp)=>{
+      if(resp.error||!resp.access_token) return;
+      saveDriveToken(resp.access_token, resp.expires_in||3599);
+      dConnected=true;
+      localStorage.setItem('d_ever','1');
+    }
+  });
+}
+
+// 토큰 만료 여부 확인
+function isTokenExpired(){
+  if(!dToken) return true;
+  return Date.now()>=dTokenExpiry;
+}
+
+// 자동 토큰 갱신 시도 (팝업 없이)
+async function refreshTokenSilently(){
+  // iOS PWA는 팝업 불가 → 조용한 갱신 불가
+  if(isIOS()&&isIOSPWA()) return false;
+  if(typeof google==='undefined'||!google.accounts) return false;
+  initTokenClient();
+  if(!dTokenClient) return false;
+  return new Promise(res=>{
+    const prev=dTokenClient.callback;
+    dTokenClient.callback=(resp)=>{
+      dTokenClient.callback=prev;
+      if(resp.error||!resp.access_token){ res(false); return; }
+      saveDriveToken(resp.access_token, resp.expires_in||3599);
+      dConnected=true;
+      localStorage.setItem('d_ever','1');
+      res(true);
+    };
+    try{
+      dTokenClient.requestAccessToken({prompt:''}); // 팝업 없이 재인증
+    }catch(e){ dTokenClient.callback=prev; res(false); }
+  });
 }
 
 // UI 업데이트
@@ -1148,8 +1202,9 @@ function handleOAuthRedirect(){
   if(!token) return;
   // 해시 제거
   history.replaceState(null,'',location.pathname+location.search);
-  dToken=token; dConnected=true;
-  localStorage.setItem('d_token',token);
+  const expiresIn=parseInt(params.get('expires_in')||'3599');
+  saveDriveToken(token, expiresIn);
+  dConnected=true;
   localStorage.setItem('d_ever','1');
   localStorage.setItem('tn_ever_connected','1');
   fetch('https://www.googleapis.com/oauth2/v2/userinfo',{headers:{Authorization:'Bearer '+token}})
@@ -1193,8 +1248,8 @@ function connectDrive(){
           }
           return;
         }
-        dToken=resp.access_token; dConnected=true;
-        localStorage.setItem('d_token',dToken);
+        saveDriveToken(resp.access_token, resp.expires_in||3599);
+        dConnected=true;
         localStorage.setItem('d_ever','1');
         localStorage.setItem('tn_ever_connected','1');
         try{
@@ -1202,6 +1257,8 @@ function connectDrive(){
           const d=await r.json(); dEmail=d.email||'';
           localStorage.setItem('d_email',dEmail);
         }catch(e){}
+        // GIS 클라이언트 재활용 (자동갱신용)
+        dTokenClient=client;
         toast('☁️ 연결됐어요! 전체 저장 중... (사진·영상 포함)');
         await ensureRootFolder();
         await saveToDrive(true);
@@ -1380,11 +1437,15 @@ async function savePostToDrive(post){
 // ── 전체 저장 ──────────────────────────────────────
 async function saveToDrive(silent=false){
   if(!dConnected||!dToken){ if(!silent) toast('드라이브 미연결 상태예요'); return; }
-  // 토큰 유효성 사전 체크
-  try{
-    const chk=await fetch('https://www.googleapis.com/oauth2/v1/tokeninfo?access_token='+dToken);
-    if(chk.status===400||chk.status===401){ handleDriveTokenExpiry(); return; }
-  }catch(e){ if(!silent) toast('네트워크 오류 😢'); return; }
+  // 토큰 만료 시 자동갱신 시도
+  if(isTokenExpired()){
+    const ok=await refreshTokenSilently();
+    if(!ok){
+      // 자동갱신 실패 → iOS PWA거나 GIS 없음 → 사용자에게 알림
+      handleDriveTokenExpiry();
+      return;
+    }
+  }
   await ensureRootFolder();
   try{
     // 각 게시글 폴더에 저장
