@@ -1118,6 +1118,7 @@ function initTokenClient(){
 // 토큰 만료 여부 확인
 function isTokenExpired(){
   if(!dToken) return true;
+  if(!dTokenExpiry||dTokenExpiry===0) return false; // expiry 기록 없으면 유효하다고 가정
   return Date.now()>=dTokenExpiry;
 }
 
@@ -1349,6 +1350,7 @@ async function driveUpdateResumable(fileId,blob,mime){
     body:JSON.stringify({mimeType:mime})
   });
   if(init.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
+  if(init.status===404) throw new Error('file_not_found');
   const uploadUrl=init.headers.get('Location');
   if(!uploadUrl) throw new Error('no_upload_url');
   await fetch(uploadUrl,{method:'PUT',headers:{'Content-Type':mime},body:blob});
@@ -1369,13 +1371,14 @@ async function driveUpload(name,blob,mime,parentId){
   return (await r.json()).id;
 }
 
-// ── 드라이브 파일 업데이트 헬퍼 ───────────────────────
+// ── 드라이브 파일 업데이트 헬퍼 (404시 file_not_found 던져서 재업로드 유도) ──
 async function driveUpdate(fileId,blob,mime){
   if(blob.size>MULTIPART_LIMIT){ await driveUpdateResumable(fileId,blob,mime); return; }
   const r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,{
     method:'PATCH',headers:{Authorization:'Bearer '+dToken,'Content-Type':mime},body:blob
   });
   if(r.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
+  if(r.status===404) throw new Error('file_not_found');
 }
 
 // ── 게시글 1개 저장 ────────────────────────────────
@@ -1466,7 +1469,15 @@ async function savePostToDrive(post){
     try{
       if(mediaIds[i]){
         // 기존 Drive 파일 업데이트 (덮어쓰기)
-        await driveUpdate(mediaIds[i],uploadBlob,uploadMime);
+        try{
+          await driveUpdate(mediaIds[i],uploadBlob,uploadMime);
+        }catch(e2){
+          if(e2.message==='file_not_found'){
+            // 파일이 Drive에서 삭제됨 → ID 초기화 후 신규 업로드
+            mediaIds[i]=null;
+            mediaIds[i]=await driveUpload(uploadFname,uploadBlob,uploadMime,folderId);
+          } else throw e2;
+        }
       } else {
         // 신규: 폴더 내 동명 파일 있으면 재사용, 없으면 새로 생성
         const fq=encodeURIComponent(`name='${uploadFname}' and '${folderId}' in parents and trashed=false`);
@@ -1498,7 +1509,8 @@ async function saveToDrive(silent=false){
   }
   await ensureRootFolder();
   try{
-    // 각 게시글 폴더에 저장
+    const mediaPosts=posts.filter(p=>(p.media&&p.media.length>0)||!p.dFolderId);
+    if(!silent&&mediaPosts.length>0) toast('☁️ 드라이브 저장 중...');
     for(let i=0;i<posts.length;i++){
       const p=posts[i];
       if((p.media&&p.media.length>0)||!p.dFolderId){
