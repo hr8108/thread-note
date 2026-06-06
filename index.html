@@ -427,18 +427,28 @@ label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weigh
 .modal-overlay.open{display:flex}
 .modal{
   background:var(--surface);border-radius:32px 32px 0 0;width:100%;
-  max-height:93vh;overflow-y:auto;
-  padding:8px 20px calc(28px + env(safe-area-inset-bottom));
+  max-height:93vh;
+  display:flex;flex-direction:column;
   animation:su .28s cubic-bezier(.34,1.15,.64,1);
   border-top:1.5px solid var(--border);
 }
+.modal-scroll{
+  flex:1;overflow-y:auto;
+  padding:8px 20px 16px;
+}
 @keyframes su{from{transform:translateY(100%)}to{transform:translateY(0)}}
-.modal-handle{width:40px;height:4px;background:var(--border);border-radius:3px;margin:14px auto 20px}
+.modal-handle{width:40px;height:4px;background:var(--border);border-radius:3px;margin:14px auto 16px}
 .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
 .modal-head h2{font-size:20px;font-weight:900;letter-spacing:-.5px}
 .modal-x{background:var(--card);border:1.5px solid var(--border);color:var(--sub);cursor:pointer;font-size:18px;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center}
 .form-group{margin-bottom:16px}
-.modal-actions{display:flex;gap:10px;margin-top:22px}
+.modal-actions{
+  display:flex;gap:10px;
+  padding:12px 20px calc(20px + env(safe-area-inset-bottom));
+  border-top:1.5px solid var(--border);
+  background:var(--surface);
+  flex-shrink:0;
+}
 .modal-actions .btn{flex:1;padding:14px}
 
 /* ══ 미디어첨부 ══ */
@@ -833,61 +843,63 @@ label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weigh
 <!-- 작성 모달 -->
 <div class="modal-overlay" id="write-modal">
   <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-head">
-      <h2 id="write-title">✨ 게시글 추가</h2>
-      <button class="modal-x" id="write-x">×</button>
-    </div>
-    <div class="form-group">
-      <label>🔗 출처 링크</label>
-      <input type="url" id="f-link" placeholder="https://threads.net/...">
-    </div>
-    <div class="form-group">
-      <label>📱 플랫폼</label>
-      <select id="f-platform">
-        <option value="threads">🧵 스레드</option>
-        <option value="instagram">📸 인스타그램</option>
-        <option value="clip">🎬 클립</option>
-        <option value="youtube">▶️ 유튜브</option>
-        <option value="tiktok">🎵 틱톡</option>
-        <option value="other">🔗 기타</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>📂 카테고리</label>
-      <select id="f-category"></select>
-    </div>
-    <div class="form-group">
-      <label>📝 글 내용</label>
-      <textarea id="f-text" rows="5" placeholder="게시글 내용을 붙여넣거나 직접 입력하세요..."></textarea>
-    </div>
-    <div class="form-group">
-      <label>💬 내가 쓴 댓글</label>
-      <textarea id="f-comment" rows="3" placeholder="내가 쓴 댓글..."></textarea>
-    </div>
-    <div class="form-group">
-      <label>📅 실제 게시 날짜 (스레드에 올린 날)</label>
-      <input type="date" id="f-postdate">
-    </div>
-    <div class="form-group">
-      <label>🔁 재게시 주기 설정 (조회수 좋은 글 반복 게시)</label>
-      <div class="repost-interval-row">
-        <input type="number" id="f-repost-interval" placeholder="0" min="0" max="365">
-        <span>일마다 재게시 (0이면 미사용)</span>
+    <div class="modal-scroll">
+      <div class="modal-handle"></div>
+      <div class="modal-head">
+        <h2 id="write-title">✨ 게시글 추가</h2>
+        <button class="modal-x" id="write-x">×</button>
       </div>
-    </div>
-    <div class="form-group">
-      <label>👁️ 조회수</label>
-      <div class="views-row">
-        <input type="number" id="f-views" placeholder="0" min="0">
-        <span>직접 입력</span>
+      <div class="form-group">
+        <label>🔗 출처 링크</label>
+        <input type="url" id="f-link" placeholder="https://threads.net/...">
       </div>
-    </div>
-    <div class="form-group">
-      <label>🖼️ 사진 / 영상</label>
-      <div class="mpg" id="mpg"></div>
-      <input type="file" id="f-media" accept="image/*,video/*" multiple style="display:none">
-    </div>
+      <div class="form-group">
+        <label>📱 플랫폼</label>
+        <select id="f-platform">
+          <option value="threads">🧵 스레드</option>
+          <option value="instagram">📸 인스타그램</option>
+          <option value="clip">🎬 클립</option>
+          <option value="youtube">▶️ 유튜브</option>
+          <option value="tiktok">🎵 틱톡</option>
+          <option value="other">🔗 기타</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>📂 카테고리</label>
+        <select id="f-category"></select>
+      </div>
+      <div class="form-group">
+        <label>📝 글 내용</label>
+        <textarea id="f-text" rows="5" placeholder="게시글 내용을 붙여넣거나 직접 입력하세요..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>💬 내가 쓴 댓글</label>
+        <textarea id="f-comment" rows="3" placeholder="내가 쓴 댓글..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>📅 실제 게시 날짜 (스레드에 올린 날)</label>
+        <input type="date" id="f-postdate">
+      </div>
+      <div class="form-group">
+        <label>🔁 재게시 주기 설정 (조회수 좋은 글 반복 게시)</label>
+        <div class="repost-interval-row">
+          <input type="number" id="f-repost-interval" placeholder="0" min="0" max="365">
+          <span>일마다 재게시 (0이면 미사용)</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>👁️ 조회수</label>
+        <div class="views-row">
+          <input type="number" id="f-views" placeholder="0" min="0">
+          <span>직접 입력</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>🖼️ 사진 / 영상</label>
+        <div class="mpg" id="mpg"></div>
+        <input type="file" id="f-media" accept="image/*,video/*" multiple style="display:none">
+      </div>
+    </div><!-- /modal-scroll -->
     <div class="modal-actions">
       <button class="btn btn-ghost" id="write-cancel">취소</button>
       <button class="btn btn-primary" id="write-save">💾 저장하기</button>
