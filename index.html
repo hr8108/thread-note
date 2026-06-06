@@ -1420,77 +1420,64 @@ async function savePostToDrive(post){
   ].join('\n');
   const txtBlob=new Blob([txtContent],{type:'text/plain'});
   if(post.dTxtId){
-    await driveUpdate(post.dTxtId,txtBlob,'text/plain');
-  } else {
-    // 폴더 안에 이미 내용.txt 있는지 확인 (중복 방지)
-    const tq=encodeURIComponent(`name='내용.txt' and '${folderId}' in parents and trashed=false`);
-    const tr=await fetch(`https://www.googleapis.com/drive/v3/files?q=${tq}&fields=files(id)`,{headers:{Authorization:'Bearer '+dToken}});
-    const tf=await tr.json();
-    if(tf.files&&tf.files.length>0){
-      post.dTxtId=tf.files[0].id;
-      await driveUpdate(post.dTxtId,txtBlob,'text/plain');
-    } else {
-      post.dTxtId=await driveUpload('내용.txt',txtBlob,'text/plain',folderId);
+    try{ await driveUpdate(post.dTxtId,txtBlob,'text/plain'); }
+    catch(e2){
+      if(e2.message==='file_not_found'){
+        post.dTxtId=await driveUpload('내용.txt',txtBlob,'text/plain',folderId);
+      }else throw e2;
     }
+  } else {
+    post.dTxtId=await driveUpload('내용.txt',txtBlob,'text/plain',folderId);
   }
 
-  // 사진·영상: IDB에서 항상 최신 데이터 가져옴 (blob: URL 포함)
+  // 사진·영상: IDB에서 최신 데이터 가져옴 (blob: URL, __idb__ 포함)
   let resolvedMedia=post.media||[];
-  // blob: URL이나 __idb__ 마커가 있으면 IDB에서 실제 데이터 사용
-  const needIdb=resolvedMedia.some(m=>
-    !m.dataUrl || m.dataUrl==='__idb__' || m.dataUrl.startsWith('blob:')
-  );
+  const needIdb=resolvedMedia.some(m=>!m.dataUrl||m.dataUrl==='__idb__'||m.dataUrl.startsWith('blob:'));
   if(needIdb){
     const idbData=await idbGet('pm_'+post.id);
     if(idbData&&idbData.length>0) resolvedMedia=idbData;
   }
 
   const mediaIds=post.dMediaIds?[...post.dMediaIds]:[];
+
+  // 1) 먼저 모든 blob 준비 (b64toBlob은 CPU 작업이라 미리 처리)
+  const uploads=[];
   for(let i=0;i<resolvedMedia.length;i++){
     const m=resolvedMedia[i];
-
-    let uploadBlob=null, uploadMime='', uploadFname='';
-
+    let uploadBlob=null,uploadMime='',uploadFname='';
     if(m.type==='video'&&m.blob instanceof Blob){
-      uploadBlob=m.blob;
-      uploadMime=m.blob.type||'video/mp4';
-      const uploadExt=(m.name||'영상').split('.').pop()||'mp4';
-      uploadFname=`영상${i+1}.${uploadExt}`;
-    } else if(m.dataUrl&&m.dataUrl.startsWith('data:')){
+      uploadBlob=m.blob; uploadMime=m.blob.type||'video/mp4';
+      const ext=(m.name||'영상').split('.').pop()||'mp4';
+      uploadFname=`영상${i+1}.${ext}`;
+    }else if(m.dataUrl&&m.dataUrl.startsWith('data:')){
       try{
         const {blob,mime,ext}=b64toBlob(m.dataUrl);
         uploadBlob=blob; uploadMime=mime;
         uploadFname=`${m.type==='video'?'영상':'사진'}${i+1}.${ext}`;
-      }catch(e){ console.error('b64toBlob 실패',e); continue; }
-    } else {
-      continue;
-    }
+      }catch(e){ console.error('b64toBlob 실패',i,e); continue; }
+    }else{ continue; }
+    uploads.push({i,uploadBlob,uploadMime,uploadFname});
+  }
 
-    try{
-      if(mediaIds[i]){
-        // 기존 Drive 파일 업데이트 (덮어쓰기)
-        try{
-          await driveUpdate(mediaIds[i],uploadBlob,uploadMime);
-        }catch(e2){
-          if(e2.message==='file_not_found'){
-            // 파일이 Drive에서 삭제됨 → ID 초기화 후 신규 업로드
-            mediaIds[i]=null;
-            mediaIds[i]=await driveUpload(uploadFname,uploadBlob,uploadMime,folderId);
-          } else throw e2;
-        }
-      } else {
-        // 신규: 폴더 내 동명 파일 있으면 재사용, 없으면 새로 생성
-        const fq=encodeURIComponent(`name='${uploadFname}' and '${folderId}' in parents and trashed=false`);
-        const fr=await fetch(`https://www.googleapis.com/drive/v3/files?q=${fq}&fields=files(id)`,{headers:{Authorization:'Bearer '+dToken}});
-        const ff=await fr.json();
-        if(ff.files&&ff.files.length>0){
-          mediaIds[i]=ff.files[0].id;
-          await driveUpdate(mediaIds[i],uploadBlob,uploadMime);
-        } else {
+  // 2) 3개씩 병렬 업로드
+  for(let b=0;b<uploads.length;b+=3){
+    await Promise.all(uploads.slice(b,b+3).map(async({i,uploadBlob,uploadMime,uploadFname})=>{
+      try{
+        if(mediaIds[i]){
+          // 기존 파일 덮어쓰기
+          try{ await driveUpdate(mediaIds[i],uploadBlob,uploadMime); }
+          catch(e2){
+            if(e2.message==='file_not_found'){
+              // Drive에서 삭제됨 → 재업로드
+              mediaIds[i]=await driveUpload(uploadFname,uploadBlob,uploadMime,folderId);
+            }else throw e2;
+          }
+        }else{
+          // 신규 업로드 (중복 검색 없이 바로 올림 — dMediaIds로 추적)
           mediaIds[i]=await driveUpload(uploadFname,uploadBlob,uploadMime,folderId);
         }
-      }
-    }catch(e){ console.error('미디어 업로드 실패',i,e); }
+      }catch(e){ console.error('미디어 업로드 실패',i,e); }
+    }));
   }
   post.dMediaIds=mediaIds;
 }
