@@ -1596,7 +1596,7 @@ function renderCard(p){
   const div=document.createElement('div');
   div.className='card';
   // 유효한 dataUrl만 사용 (깨진 이미지 방지)
-  const media=(p.media||[]).filter(m=>m.dataUrl&&m.dataUrl!=='__idb__'&&m.dataUrl.startsWith('data:'));
+  const media=(p.media||[]).filter(m=>m.dataUrl&&m.dataUrl!=='__idb__'&&(m.dataUrl.startsWith('data:')||m.dataUrl.startsWith('blob:')));
   let mhtml='';
   if(media.length>0){
     const show=Math.min(media.length,4);
@@ -1948,7 +1948,7 @@ function openDetail(id){
   const p=posts.find(x=>x.id===id); if(!p) return;
   curDetailId=id;
   // 유효한 dataUrl만 표시 (깨진 이미지 방지)
-  const media=(p.media||[]).filter(m=>m.dataUrl&&m.dataUrl!=='__idb__'&&m.dataUrl.startsWith('data:'));
+  const media=(p.media||[]).filter(m=>m.dataUrl&&m.dataUrl!=='__idb__'&&(m.dataUrl.startsWith('data:')||m.dataUrl.startsWith('blob:')));
   const mhtml=media.length?`<div class="detail-media">${media.map(m=>m.type==='video'?`<video src="${m.dataUrl}" controls playsinline style="width:100%"></video>`:`<img src="${m.dataUrl}" alt="">`).join('')}</div>`:'';
   const rank=rankOf(id);
   const rs=rank===1?'🥇 1위':rank===2?'🥈 2위':rank===3?'🥉 3위':rank?`✨ #${rank}위`:'';
