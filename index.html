@@ -1306,6 +1306,39 @@ async function ensureRootFolder(){
   localStorage.setItem('d_root',dRootId);
 }
 
+// ── data URL → Blob 변환 (안드로이드 대용량 영상용) ──
+// XHR(responseType=blob) → fetch → b64toBlob 순서로 시도
+function dataUrlToBlobSafe(dataUrl){
+  // 1순위: XHR (안드로이드 Chrome에서 가장 안정적)
+  return new Promise((res,rej)=>{
+    const xhr=new XMLHttpRequest();
+    xhr.open('GET',dataUrl,true);
+    xhr.responseType='blob';
+    xhr.timeout=120000; // 2분
+    xhr.onload=()=>{
+      if(xhr.response&&xhr.response.size>0) res(xhr.response);
+      else rej(new Error('xhr_empty'));
+    };
+    xhr.onerror=()=>rej(new Error('xhr_error'));
+    xhr.ontimeout=()=>rej(new Error('xhr_timeout'));
+    xhr.send();
+  }).catch(async e1=>{
+    console.warn('XHR 실패, fetch 시도',e1);
+    // 2순위: fetch
+    try{
+      const r=await fetch(dataUrl);
+      const b=await r.blob();
+      if(b&&b.size>0) return b;
+      throw new Error('fetch_empty');
+    }catch(e2){
+      console.warn('fetch 실패, b64toBlob 시도',e2);
+      // 3순위: b64toBlob (동기, 메모리 많이 쓰지만 최후 수단)
+      const {blob}=b64toBlob(dataUrl);
+      return blob;
+    }
+  });
+}
+
 // ── base64 → Blob 변환 ─────────────────────────────
 function b64toBlob(b64){
   const [head,data]=b64.split(',');
@@ -1526,16 +1559,16 @@ async function savePostToDrive(post){
         uploadBlob=m.blob;
         uploadMime=m.blob.type||'video/mp4';
       } else if(m.dataUrl&&m.dataUrl.startsWith('data:')){
-        // Android: fetch()로 변환 (메모리 효율적, 브라우저 네이티브)
+        // Android: data URL → Blob 변환 (XHR > fetch > b64 순서로 시도)
         toast('📹 영상 업로드 준비 중...');
-        const res=await fetch(m.dataUrl);
-        uploadBlob=await res.blob();
+        uploadBlob=await dataUrlToBlobSafe(m.dataUrl);
         uploadMime=uploadBlob.type||'video/mp4';
       } else { continue; }
+      if(!uploadBlob||uploadBlob.size===0){ toast('❌ 영상 데이터 없음'); continue; }
       toast('📹 영상 드라이브 업로드 중... (시간이 걸려요)');
       await doUpload({i,uploadBlob,uploadMime,uploadFname});
       toast('✅ 영상 업로드 완료!');
-    }catch(e){ console.error('영상 업로드 실패',i,e); toast('❌ 영상 업로드 실패'); }
+    }catch(e){ console.error('영상 업로드 실패',i,e); toast('❌ 영상 업로드 실패: '+e.message); }
   }
 
   post.dMediaIds=mediaIds;
