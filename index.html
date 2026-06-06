@@ -985,30 +985,51 @@ let editingId=null, pendingMedia=[], curScreen='home';
 let homeSort='date', homeDateFilter=null, homePlatFilter='all', homeViewRange='all';
 let searchCatFilter='all', curDetailId=null, curTheme='black';
 
+// ══ IndexedDB (사진·영상 무제한 저장) ══════════════
+let _idb=null;
+function openIDB(){
+  return new Promise(res=>{
+    if(_idb){res(_idb);return;}
+    const req=indexedDB.open('tn_media_v1',1);
+    req.onupgradeneeded=e=>e.target.result.createObjectStore('m');
+    req.onsuccess=e=>{_idb=e.target.result;res(_idb);};
+    req.onerror=()=>res(null);
+  });
+}
+function idbPut(key,val){
+  return openIDB().then(db=>{if(!db)return;return new Promise(res=>{const tx=db.transaction('m','readwrite');tx.objectStore('m').put(val,key);tx.oncomplete=res;tx.onerror=res;});});
+}
+function idbGet(key){
+  return openIDB().then(db=>{if(!db)return null;return new Promise(res=>{const req=db.transaction('m','readonly').objectStore('m').get(key);req.onsuccess=e=>res(e.target.result||null);req.onerror=()=>res(null);});});
+}
+function idbDel(key){
+  openIDB().then(db=>{if(!db)return;db.transaction('m','readwrite').objectStore('m').delete(key);});
+}
+function idbGetAll(){
+  return openIDB().then(db=>{if(!db)return{};return new Promise(res=>{const result={},req=db.transaction('m','readonly').objectStore('m').openCursor();req.onsuccess=e=>{const c=e.target.result;if(c){result[c.key]=c.value;c.continue();}else res(result);};req.onerror=()=>res({});});});
+}
+
 // ══ 로컬 저장 ══════════════════════════════════════
+// posts 저장: 미디어 dataUrl → IDB, 나머지 → localStorage
 function saveLocal(){
-  try{
-    localStorage.setItem('tn3_posts', JSON.stringify(posts));
-    localStorage.setItem('tn3_cats', JSON.stringify(categories));
-    localStorage.setItem('tn3_theme', curTheme);
-    localStorage.setItem('tn3_drafts', JSON.stringify(drafts));
-    scheduleDriveSave();
-  } catch(e){
-    // 용량 초과(QuotaExceededError) 시 미디어 썸네일만 제거하고 재시도
-    console.warn('localStorage 용량 초과, 미디어 압축 저장 시도');
-    try{
-      const slim = posts.map(p=>({
-        ...p,
-        media:(p.media||[]).map(m=>({...m, dataUrl: m.dataUrl.length>50000 ? m.dataUrl.slice(0,50000)+'...(압축됨)' : m.dataUrl}))
-      }));
-      localStorage.setItem('tn3_posts', JSON.stringify(slim));
-      localStorage.setItem('tn3_cats', JSON.stringify(categories));
-      localStorage.setItem('tn3_theme', curTheme);
-      toast('⚠️ 저장 용량이 부족해요!\n사진은 구글 드라이브에만 보관됩니다.');
-      scheduleDriveSave();
-    }catch(e2){
-      toast('❌ 저장 실패: 저장공간이 꽉 찼어요\n구글 드라이브 연동을 이용해주세요');
+  // 미디어를 IDB에 따로 저장하고 localStorage엔 메타만 남김
+  const slim=posts.map(p=>{
+    const media=p.media||[];
+    if(media.some(m=>m.dataUrl&&m.dataUrl.length>200&&!m.dataUrl.startsWith('__idb__'))){
+      idbPut('pm_'+p.id, media); // 실제 데이터는 IDB에
+      return {...p, media:media.map(m=>({type:m.type,name:m.name||'',dataUrl:'__idb__'}))};
     }
+    return p;
+  });
+  try{
+    localStorage.setItem('tn3_posts',JSON.stringify(slim));
+    localStorage.setItem('tn3_cats',JSON.stringify(categories));
+    localStorage.setItem('tn3_theme',curTheme);
+    localStorage.setItem('tn3_drafts',JSON.stringify(drafts));
+    scheduleDriveSave();
+  }catch(e){
+    toast('❌ 저장 실패: 설정 → 이전 데이터 정리가 필요해요');
+    console.error('saveLocal error',e);
   }
 }
 function loadLocal(){
@@ -1017,6 +1038,15 @@ function loadLocal(){
   try{ drafts=JSON.parse(localStorage.getItem('tn3_drafts')||'[]'); }catch(e){ drafts=[]; }
   curTheme=localStorage.getItem('tn3_theme')||'black';
   applyTheme(curTheme,false);
+}
+// IDB에서 미디어 복원 → posts에 합치기
+async function restoreMediaFromIDB(){
+  const all=await idbGetAll();
+  posts=posts.map(p=>{
+    const idbMedia=all['pm_'+p.id];
+    if(idbMedia) return {...p,media:idbMedia};
+    return p;
+  });
 }
 
 // ══ 구글 드라이브 연동 ═══════════════════════════════
@@ -1733,29 +1763,9 @@ document.getElementById('f-media').addEventListener('change',async function(){
 });
 function toDataUrl(f){
   return new Promise(res=>{
-    // 영상은 그대로
-    if(f.type.startsWith('video')){
-      const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(f);
-      return;
-    }
-    // 이미지는 캔버스로 리사이즈 압축 (최대 1200px, JPEG 80%)
-    const url=URL.createObjectURL(f);
-    const img=new Image();
-    img.onload=()=>{
-      const MAX=1200;
-      let w=img.width, h=img.height;
-      if(w>MAX||h>MAX){
-        if(w>h){ h=Math.round(h*MAX/w); w=MAX; }
-        else{ w=Math.round(w*MAX/h); h=MAX; }
-      }
-      const c=document.createElement('canvas');
-      c.width=w; c.height=h;
-      c.getContext('2d').drawImage(img,0,0,w,h);
-      URL.revokeObjectURL(url);
-      res(c.toDataURL('image/jpeg',0.8));
-    };
-    img.onerror=()=>{ URL.revokeObjectURL(url); const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(f); };
-    img.src=url;
+    const r=new FileReader();
+    r.onload=e=>res(e.target.result);
+    r.readAsDataURL(f);
   });
 }
 function closeWrite(){ document.getElementById('write-modal').classList.remove('open'); editingId=null; pendingMedia=[]; }
@@ -1887,6 +1897,7 @@ document.getElementById('detail-edit').addEventListener('click',()=>{
 });
 document.getElementById('detail-delete').addEventListener('click',()=>{
   if(!confirm('이 게시글을 삭제할까요? 🗑️')) return;
+  idbDel('pm_'+curDetailId); // IDB 미디어도 삭제
   posts=posts.filter(p=>p.id!==curDetailId);
   saveLocal(); document.getElementById('detail-modal').classList.remove('open'); refresh(); toast('삭제됐어요 🌸');
 });
@@ -2194,13 +2205,14 @@ document.getElementById('memo-list-toggle').addEventListener('click',()=>{
 
 // ══ 초기화 ════════════════════════════════════════
 loadLocal();
-loadDriveState();   // 드라이브 연결 상태 복원
-handleOAuthRedirect(); // iOS PWA redirect 결과 처리
+loadDriveState();
+handleOAuthRedirect();
 updateDriveUI();
 updateCatSel();
-renderHome();
 handleShare();
-loadMemoData();     // 메모장 데이터 불러오기
+loadMemoData();
+// IDB에서 미디어 복원 후 렌더 (사진이 있는 게시글 정상 표시)
+restoreMediaFromIDB().then(()=>{ renderHome(); }).catch(()=>{ renderHome(); });
 
 // 구글 연결한 적 없고, 닫은 적도 없으면 2초 후 팝업
 setTimeout(()=>{
