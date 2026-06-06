@@ -386,8 +386,9 @@ label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weigh
 .card-images.n3 .mi:not(:first-child){height:99px}
 .card-images.n4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
 .card-images.n4 .mi{height:130px}
-.mi{overflow:hidden;background:var(--border)}
+.mi{overflow:hidden;background:var(--border);position:relative}
 .mi img,.mi video{width:100%;height:100%;object-fit:cover;display:block}
+.vid-play-ov{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:1.5rem;color:#fff;pointer-events:none;text-shadow:0 1px 6px rgba(0,0,0,.8);}
 .more-badge{
   position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.62);
   color:#fff;font-size:12px;font-weight:700;padding:4px 9px;border-radius:10px;
@@ -1604,7 +1605,7 @@ function renderCard(p){
     for(let i=0;i<show;i++){
       const m=media[i];
       mhtml+=`<div class="mi">${m.type==='video'
-        ?`<video src="${m.dataUrl}" muted playsinline preload="metadata"></video>`
+        ?`<video src="${m.dataUrl}" muted playsinline preload="metadata" onloadedmetadata="try{this.currentTime=0.1}catch(e){}"></video><div class="vid-play-ov">▶</div>`
         :`<img src="${m.dataUrl}" loading="lazy" alt="">`
       }</div>`;
     }
@@ -1795,7 +1796,19 @@ function renderMpg(){
   const g=document.getElementById('mpg'); g.innerHTML='';
   pendingMedia.forEach((m,i)=>{
     const t=document.createElement('div'); t.className='mthumb';
-    t.innerHTML=m.type==='video'?`<video src="${m.dataUrl}" muted playsinline></video>`:`<img src="${m.dataUrl}" alt="">`;
+    if(m.type==='video'){
+      const v=document.createElement('video');
+      v.src=m.dataUrl; v.muted=true; v.playsInline=true; v.preload='metadata';
+      v.style.cssText='width:100%;height:100%;object-fit:cover;';
+      v.addEventListener('loadedmetadata',()=>{ try{v.currentTime=0.1;}catch(e){} });
+      const ov=document.createElement('div');
+      ov.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:1.4rem;pointer-events:none;text-shadow:0 1px 4px rgba(0,0,0,.7);';
+      ov.textContent='▶';
+      t.appendChild(v); t.appendChild(ov);
+    } else {
+      const img=document.createElement('img'); img.src=m.dataUrl; img.alt='';
+      t.appendChild(img);
+    }
     const d=document.createElement('button'); d.className='mdel'; d.textContent='×';
     d.addEventListener('click',e=>{ e.stopPropagation(); pendingMedia.splice(i,1); renderMpg(); });
     t.appendChild(d); g.appendChild(t);
@@ -1949,7 +1962,7 @@ function openDetail(id){
   curDetailId=id;
   // 유효한 dataUrl만 표시 (깨진 이미지 방지)
   const media=(p.media||[]).filter(m=>m.dataUrl&&m.dataUrl!=='__idb__'&&(m.dataUrl.startsWith('data:')||m.dataUrl.startsWith('blob:')));
-  const mhtml=media.length?`<div class="detail-media">${media.map(m=>m.type==='video'?`<video src="${m.dataUrl}" controls playsinline style="width:100%"></video>`:`<img src="${m.dataUrl}" alt="">`).join('')}</div>`:'';
+  const mhtml=media.length?`<div class="detail-media">${media.map(m=>m.type==='video'?`<video src="${m.dataUrl}" controls playsinline preload="metadata" onloadedmetadata="try{this.currentTime=0.1}catch(e){}" style="width:100%"></video>`:`<img src="${m.dataUrl}" alt="">`).join('')}</div>`:'';
   const rank=rankOf(id);
   const rs=rank===1?'🥇 1위':rank===2?'🥈 2위':rank===3?'🥉 3위':rank?`✨ #${rank}위`:'';
   document.getElementById('detail-content').innerHTML=`
