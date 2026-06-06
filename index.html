@@ -1325,60 +1325,93 @@ function handleDriveTokenExpiry(){
   toast('⚠️ 구글 드라이브 연결이 만료됐어요\n설정 → 드라이브 재연결 필요');
 }
 
-// ── 드라이브 resumable 업로드 (대용량 파일용) ────────
-async function driveUploadResumable(name,blob,mime,parentId){
-  // 1단계: 세션 URL 발급 (Content-Length는 브라우저 금지헤더라 제외)
-  const init=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id',{
+const MULTIPART_LIMIT = 4*1024*1024;   // 4MB 이하: multipart
+const CHUNK_SIZE      = 5*1024*1024;   // 청크 크기: 5MB
+
+// ── resumable 세션 URL 발급 (신규) ────────────────────
+async function _resumableInit(name,mime,parentId){
+  const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id',{
     method:'POST',
     headers:{Authorization:'Bearer '+dToken,'Content-Type':'application/json','X-Upload-Content-Type':mime},
     body:JSON.stringify({name,mimeType:mime,parents:[parentId]})
   });
-  if(init.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
-  const uploadUrl=init.headers.get('Location');
-  if(!uploadUrl) throw new Error('no_upload_url');
-  // 2단계: 파일 전송
-  const r=await fetch(uploadUrl,{method:'PUT',headers:{'Content-Type':mime},body:blob});
   if(r.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
-  const json=await r.json();
-  return json.id;
+  const url=r.headers.get('Location');
+  if(!url) throw new Error('no_upload_url');
+  return url;
 }
 
-async function driveUpdateResumable(fileId,blob,mime){
-  const init=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=resumable`,{
+// ── resumable 세션 URL 발급 (업데이트) ────────────────
+async function _resumableInitUpdate(fileId,mime){
+  const r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=resumable`,{
     method:'PATCH',
     headers:{Authorization:'Bearer '+dToken,'Content-Type':'application/json','X-Upload-Content-Type':mime},
     body:JSON.stringify({mimeType:mime})
   });
-  if(init.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
-  if(init.status===404) throw new Error('file_not_found');
-  const uploadUrl=init.headers.get('Location');
-  if(!uploadUrl) throw new Error('no_upload_url');
-  await fetch(uploadUrl,{method:'PUT',headers:{'Content-Type':mime},body:blob});
-}
-
-const MULTIPART_LIMIT=4*1024*1024; // 4MB 이하만 multipart, 초과는 resumable
-
-// ── 드라이브 파일 업로드 헬퍼 ─────────────────────────
-async function driveUpload(name,blob,mime,parentId){
-  if(blob.size>MULTIPART_LIMIT) return driveUploadResumable(name,blob,mime,parentId);
-  const form=new FormData();
-  form.append('metadata',new Blob([JSON.stringify({name,mimeType:mime,parents:[parentId]})],{type:'application/json'}));
-  form.append('file',blob);
-  const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{
-    method:'POST',headers:{Authorization:'Bearer '+dToken},body:form
-  });
-  if(r.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
-  return (await r.json()).id;
-}
-
-// ── 드라이브 파일 업데이트 헬퍼 (404시 file_not_found 던져서 재업로드 유도) ──
-async function driveUpdate(fileId,blob,mime){
-  if(blob.size>MULTIPART_LIMIT){ await driveUpdateResumable(fileId,blob,mime); return; }
-  const r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,{
-    method:'PATCH',headers:{Authorization:'Bearer '+dToken,'Content-Type':mime},body:blob
-  });
   if(r.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
   if(r.status===404) throw new Error('file_not_found');
+  const url=r.headers.get('Location');
+  if(!url) throw new Error('no_upload_url');
+  return url;
+}
+
+// ── 청크 업로드 (5MB씩 분할 → 모바일 타임아웃 방지) ──
+async function _uploadChunked(uploadUrl,blob,mime){
+  let offset=0;
+  while(offset<blob.size){
+    const end=Math.min(offset+CHUNK_SIZE, blob.size);
+    const chunk=blob.slice(offset,end);
+    const isLast=(end===blob.size);
+    const headers={
+      'Content-Type':mime,
+      'Content-Range':`bytes ${offset}-${end-1}/${blob.size}`
+    };
+    const r=await fetch(uploadUrl,{method:'PUT',headers,body:chunk});
+    if(r.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
+    if(r.status===200||r.status===201){
+      const j=await r.json(); return j.id||null;
+    }
+    if(r.status===308){
+      // 더 보낼 청크 있음 — 서버가 확인한 범위 읽기
+      const range=r.headers.get('Range');
+      offset=range?parseInt(range.split('-')[1])+1:end;
+    } else {
+      throw new Error('chunk_failed_'+r.status);
+    }
+  }
+  return null;
+}
+
+// ── 드라이브 파일 업로드 ──────────────────────────────
+async function driveUpload(name,blob,mime,parentId){
+  if(blob.size<=MULTIPART_LIMIT){
+    // 소형: multipart (1 요청)
+    const form=new FormData();
+    form.append('metadata',new Blob([JSON.stringify({name,mimeType:mime,parents:[parentId]})],{type:'application/json'}));
+    form.append('file',blob);
+    const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{
+      method:'POST',headers:{Authorization:'Bearer '+dToken},body:form
+    });
+    if(r.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
+    return (await r.json()).id;
+  }
+  // 대형: 청크 resumable
+  const url=await _resumableInit(name,mime,parentId);
+  return await _uploadChunked(url,blob,mime);
+}
+
+// ── 드라이브 파일 업데이트 ───────────────────────────
+async function driveUpdate(fileId,blob,mime){
+  if(blob.size<=MULTIPART_LIMIT){
+    const r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,{
+      method:'PATCH',headers:{Authorization:'Bearer '+dToken,'Content-Type':mime},body:blob
+    });
+    if(r.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
+    if(r.status===404) throw new Error('file_not_found');
+    return;
+  }
+  const url=await _resumableInitUpdate(fileId,mime);
+  await _uploadChunked(url,blob,mime);
 }
 
 // ── 게시글 1개 저장 ────────────────────────────────
@@ -1440,8 +1473,8 @@ async function savePostToDrive(post){
 
   const mediaIds=post.dMediaIds?[...post.dMediaIds]:[];
 
-  // 1) 먼저 모든 blob 준비 (b64toBlob은 CPU 작업이라 미리 처리)
-  const uploads=[];
+  // 1) 모든 blob 준비
+  const photoUploads=[], videoUploads=[];
   for(let i=0;i<resolvedMedia.length;i++){
     const m=resolvedMedia[i];
     let uploadBlob=null,uploadMime='',uploadFname='';
@@ -1456,29 +1489,34 @@ async function savePostToDrive(post){
         uploadFname=`${m.type==='video'?'영상':'사진'}${i+1}.${ext}`;
       }catch(e){ console.error('b64toBlob 실패',i,e); continue; }
     }else{ continue; }
-    uploads.push({i,uploadBlob,uploadMime,uploadFname});
+    const item={i,uploadBlob,uploadMime,uploadFname};
+    if(m.type==='video') videoUploads.push(item);
+    else photoUploads.push(item);
   }
 
-  // 2) 3개씩 병렬 업로드
-  for(let b=0;b<uploads.length;b+=3){
-    await Promise.all(uploads.slice(b,b+3).map(async({i,uploadBlob,uploadMime,uploadFname})=>{
-      try{
-        if(mediaIds[i]){
-          // 기존 파일 덮어쓰기
-          try{ await driveUpdate(mediaIds[i],uploadBlob,uploadMime); }
-          catch(e2){
-            if(e2.message==='file_not_found'){
-              // Drive에서 삭제됨 → 재업로드
-              mediaIds[i]=await driveUpload(uploadFname,uploadBlob,uploadMime,folderId);
-            }else throw e2;
-          }
-        }else{
-          // 신규 업로드 (중복 검색 없이 바로 올림 — dMediaIds로 추적)
-          mediaIds[i]=await driveUpload(uploadFname,uploadBlob,uploadMime,folderId);
+  // 업로드 실행 함수
+  const doUpload=async({i,uploadBlob,uploadMime,uploadFname})=>{
+    try{
+      if(mediaIds[i]){
+        try{ await driveUpdate(mediaIds[i],uploadBlob,uploadMime); }
+        catch(e2){
+          if(e2.message==='file_not_found')
+            mediaIds[i]=await driveUpload(uploadFname,uploadBlob,uploadMime,folderId);
+          else throw e2;
         }
-      }catch(e){ console.error('미디어 업로드 실패',i,e); }
-    }));
-  }
+      }else{
+        mediaIds[i]=await driveUpload(uploadFname,uploadBlob,uploadMime,folderId);
+      }
+    }catch(e){ console.error('미디어 업로드 실패',i,e); }
+  };
+
+  // 2) 사진: 3개씩 병렬 업로드 (빠름)
+  for(let b=0;b<photoUploads.length;b+=3)
+    await Promise.all(photoUploads.slice(b,b+3).map(doUpload));
+
+  // 3) 영상: 순서대로 청크 업로드 (대용량 → 병렬 불가)
+  for(const v of videoUploads) await doUpload(v);
+
   post.dMediaIds=mediaIds;
 }
 
