@@ -1292,12 +1292,16 @@ async function savePostToDrive(post){
     post.dTxtId=await driveUpload('내용.txt',txtBlob,'text/plain',folderId);
   }
 
-  // 사진·영상 업로드
-  const media=post.media||[];
-  const mediaIds=post.dMediaIds||[];
-  for(let i=0;i<media.length;i++){
-    const m=media[i];
-    if(!m.dataUrl) continue;
+  // 사진·영상 업로드 (IDB 마커 있으면 IDB에서 실제 데이터 복원)
+  let resolvedMedia=post.media||[];
+  if(resolvedMedia.some(m=>!m.dataUrl||m.dataUrl==='__idb__')){
+    const idbData=await idbGet('pm_'+post.id);
+    if(idbData&&idbData.length>0) resolvedMedia=idbData;
+  }
+  const mediaIds=post.dMediaIds?[...post.dMediaIds]:[];
+  for(let i=0;i<resolvedMedia.length;i++){
+    const m=resolvedMedia[i];
+    if(!m.dataUrl||m.dataUrl==='__idb__'||!m.dataUrl.startsWith('data:')) continue;
     try{
       const {blob,mime,ext}=b64toBlob(m.dataUrl);
       const fname=`${m.type==='video'?'영상':'사진'}${i+1}.${ext}`;
@@ -1545,7 +1549,8 @@ function rankOf(id){
 function renderCard(p){
   const div=document.createElement('div');
   div.className='card';
-  const media=p.media||[];
+  // 유효한 dataUrl만 사용 (깨진 이미지 방지)
+  const media=(p.media||[]).filter(m=>m.dataUrl&&m.dataUrl!=='__idb__'&&m.dataUrl.startsWith('data:'));
   let mhtml='';
   if(media.length>0){
     const show=Math.min(media.length,4);
@@ -1867,7 +1872,8 @@ function deleteRepost(id,idx){
 function openDetail(id){
   const p=posts.find(x=>x.id===id); if(!p) return;
   curDetailId=id;
-  const media=p.media||[];
+  // 유효한 dataUrl만 표시 (깨진 이미지 방지)
+  const media=(p.media||[]).filter(m=>m.dataUrl&&m.dataUrl!=='__idb__'&&m.dataUrl.startsWith('data:'));
   const mhtml=media.length?`<div class="detail-media">${media.map(m=>m.type==='video'?`<video src="${m.dataUrl}" controls playsinline style="width:100%"></video>`:`<img src="${m.dataUrl}" alt="">`).join('')}</div>`:'';
   const rank=rankOf(id);
   const rs=rank===1?'🥇 1위':rank===2?'🥈 2위':rank===3?'🥉 3위':rank?`✨ #${rank}위`:'';
