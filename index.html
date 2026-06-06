@@ -216,6 +216,89 @@ label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weigh
 }
 .sort-chip.active{background:var(--grad);color:#fff;border-color:transparent}
 
+/* ══ 조회수 범위 필터 ══ */
+.views-range-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:14px;scrollbar-width:none}
+.views-range-row::-webkit-scrollbar{display:none}
+.vchip{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:6px 13px;border-radius:30px;border:1.5px solid var(--border);
+  background:var(--card);color:var(--sub);font-size:12px;font-weight:700;
+  white-space:nowrap;cursor:pointer;transition:all .2s;flex-shrink:0;
+}
+.vchip.active{background:var(--grad);color:#fff;border-color:transparent}
+
+/* ══ 보관함 카드 ══ */
+.draft-card{
+  background:var(--card);border-radius:20px;border:2px dashed var(--border);
+  margin-bottom:14px;overflow:hidden;
+  box-shadow:var(--card-shadow);
+}
+.draft-card-body{padding:14px 16px}
+.draft-preview{
+  font-size:14px;line-height:1.65;color:var(--text);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+  margin-bottom:10px;word-break:break-all;
+}
+.draft-footer{
+  display:flex;align-items:center;gap:8px;padding-top:10px;
+  border-top:1.5px solid var(--border);flex-wrap:wrap;
+}
+.draft-label{font-size:11px;color:var(--sub);background:var(--surface);border:1.5px solid var(--border);padding:3px 9px;border-radius:20px}
+.draft-publish-btn{
+  margin-left:auto;padding:7px 16px;border-radius:20px;border:none;
+  background:var(--grad);color:#fff;font-size:12px;font-weight:800;cursor:pointer;
+  transition:transform .15s;
+}
+.draft-publish-btn:active{transform:scale(.92)}
+.draft-edit-btn{
+  padding:7px 12px;border-radius:20px;border:1.5px solid var(--border);
+  background:var(--surface);color:var(--sub);font-size:12px;font-weight:700;cursor:pointer;
+}
+.draft-del-btn{
+  padding:7px 12px;border-radius:20px;border:1.5px solid rgba(248,113,113,.3);
+  background:rgba(248,113,113,.08);color:var(--red);font-size:12px;font-weight:700;cursor:pointer;
+}
+
+/* ══ 메모장 팝업 ══ */
+#memo-fab{
+  position:fixed;bottom:150px;right:18px;
+  width:48px;height:48px;border-radius:50%;
+  background:var(--surface);border:2px solid var(--a1);
+  color:var(--a1);font-size:22px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:var(--shadow);z-index:199;transition:all .2s;
+}
+#memo-fab:active{transform:scale(.88)}
+#memo-popup{
+  position:fixed;bottom:210px;right:14px;
+  width:min(340px, calc(100vw - 28px));
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:24px;z-index:400;
+  box-shadow:0 8px 40px rgba(0,0,0,.45);
+  display:none;flex-direction:column;
+  animation:memoIn .22s cubic-bezier(.34,1.2,.64,1);
+}
+#memo-popup.open{display:flex}
+@keyframes memoIn{from{transform:scale(.85) translateY(20px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
+#memo-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px 10px;border-bottom:1px solid var(--border);
+}
+#memo-header-title{font-size:14px;font-weight:800;color:var(--a1)}
+#memo-close{background:none;border:none;color:var(--sub);font-size:20px;cursor:pointer;line-height:1;padding:0 2px}
+#memo-textarea{
+  flex:1;padding:12px 16px;background:transparent;border:none;outline:none;
+  color:var(--text);font-size:14px;line-height:1.7;resize:none;min-height:180px;max-height:50vh;
+  font-family:inherit;
+}
+#memo-footer{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:8px 14px 14px;
+}
+#memo-count{font-size:11px;color:var(--sub)}
+#memo-clear{background:none;border:none;color:var(--sub);font-size:12px;cursor:pointer;padding:4px 8px;border-radius:10px}
+#memo-clear:active{background:var(--card)}
+
 /* ══ 플랫폼 필터 ══ */
 .plat-filter-row{display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none}
 .plat-filter-row::-webkit-scrollbar{display:none}
@@ -544,7 +627,27 @@ label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weigh
         <div class="sort-chip" data-sort="views">👁️ 조회수순</div>
         <div class="sort-chip" data-sort="repost">🔁 재게시 임박순</div>
       </div>
+      <!-- 조회수 범위 필터 (조회수순 선택 시 표시) -->
+      <div class="views-range-row" id="views-range-row" style="display:none">
+        <div class="vchip active" data-vrange="all">전체</div>
+        <div class="vchip" data-vrange="low">1천 미만</div>
+        <div class="vchip" data-vrange="mid">1천~1만</div>
+        <div class="vchip" data-vrange="high">1만~10만</div>
+        <div class="vchip" data-vrange="top">10만 이상</div>
+      </div>
       <div id="home-list"></div>
+    </div>
+
+    <!-- 보관함 -->
+    <div id="screen-draft" class="screen">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="font-size:18px;font-weight:900">📦 보관함</div>
+        <button class="btn btn-primary btn-sm" id="draft-add-btn">✍️ 임시글 추가</button>
+      </div>
+      <div style="font-size:13px;color:var(--sub);margin-bottom:16px;line-height:1.6">
+        아직 올리지 않은 글을 보관해두세요.<br>준비되면 <b style="color:var(--a2)">게시</b> 버튼으로 바로 올릴 수 있어요 🌸
+      </div>
+      <div id="draft-list"></div>
     </div>
 
     <!-- 카테고리 -->
@@ -667,6 +770,7 @@ label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weigh
 
   <nav id="navbar">
     <button class="nav-btn active" data-screen="home"><span class="nav-icon">🏠</span>홈</button>
+    <button class="nav-btn" data-screen="draft"><span class="nav-icon">📦</span>보관함</button>
     <button class="nav-btn" data-screen="category"><span class="nav-icon">🗂️</span>카테고리</button>
     <button class="nav-btn" data-screen="search"><span class="nav-icon">🔎</span>검색</button>
     <button class="nav-btn" data-screen="settings"><span class="nav-icon">⚙️</span>설정</button>
@@ -675,6 +779,22 @@ label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weigh
 
 <!-- FAB -->
 <button id="fab">✍️</button>
+
+<!-- 메모장 FAB -->
+<button id="memo-fab" title="메모장">📝</button>
+
+<!-- 메모장 팝업 -->
+<div id="memo-popup">
+  <div id="memo-header">
+    <span id="memo-header-title">📝 메모장</span>
+    <button id="memo-close">×</button>
+  </div>
+  <textarea id="memo-textarea" placeholder="게시글 보면서 메모해보세요 ✍️&#10;자동으로 저장돼요!"></textarea>
+  <div id="memo-footer">
+    <span id="memo-count">0자</span>
+    <button id="memo-clear">🗑️ 지우기</button>
+  </div>
+</div>
 
 <!-- 작성 모달 -->
 <div class="modal-overlay" id="write-modal">
@@ -802,8 +922,9 @@ label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weigh
 <script>
 // ══ 상태 ════════════════════════════════════════════
 let posts=[], categories=['일상','정보','홍보','광고','기타'];
+let drafts=[];
 let editingId=null, pendingMedia=[], curScreen='home';
-let homeSort='date', homeDateFilter=null, homePlatFilter='all';
+let homeSort='date', homeDateFilter=null, homePlatFilter='all', homeViewRange='all';
 let searchCatFilter='all', curDetailId=null, curTheme='black';
 
 // ══ 로컬 저장 ══════════════════════════════════════
@@ -811,11 +932,13 @@ function saveLocal(){
   localStorage.setItem('tn3_posts', JSON.stringify(posts));
   localStorage.setItem('tn3_cats', JSON.stringify(categories));
   localStorage.setItem('tn3_theme', curTheme);
+  localStorage.setItem('tn3_drafts', JSON.stringify(drafts));
   scheduleDriveSave();
 }
 function loadLocal(){
   try{ posts=JSON.parse(localStorage.getItem('tn3_posts')||'[]'); }catch(e){ posts=[]; }
   try{ categories=JSON.parse(localStorage.getItem('tn3_cats')||'["일상","정보","홍보","광고","기타"]'); }catch(e){}
+  try{ drafts=JSON.parse(localStorage.getItem('tn3_drafts')||'[]'); }catch(e){ drafts=[]; }
   curTheme=localStorage.getItem('tn3_theme')||'black';
   applyTheme(curTheme,false);
 }
@@ -864,13 +987,68 @@ document.getElementById('gdrive-disconnect-btn').addEventListener('click', disco
 document.getElementById('gdrive-save-btn').addEventListener('click', ()=>saveToDrive(false));
 document.getElementById('gdrive-load-btn').addEventListener('click', loadFromDrive);
 
+// ── iOS PWA / 브라우저 감지 ───────────────────────
+function isIOSPWA(){
+  return window.navigator.standalone === true;
+}
+function isIOS(){
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+// ── OAuth redirect 결과 처리 (iOS PWA용) ──────────
+function handleOAuthRedirect(){
+  const hash = location.hash;
+  if(!hash.includes('access_token')) return;
+  const params = new URLSearchParams(hash.slice(1));
+  const token = params.get('access_token');
+  if(!token) return;
+  // 해시 제거
+  history.replaceState(null,'',location.pathname+location.search);
+  dToken=token; dConnected=true;
+  localStorage.setItem('d_token',token);
+  localStorage.setItem('d_ever','1');
+  localStorage.setItem('tn_ever_connected','1');
+  fetch('https://www.googleapis.com/oauth2/v2/userinfo',{headers:{Authorization:'Bearer '+token}})
+    .then(r=>r.json()).then(d=>{
+      dEmail=d.email||''; localStorage.setItem('d_email',dEmail);
+    }).catch(()=>{});
+  toast('☁️ 연결됐어요! 저장 중...');
+  ensureRootFolder().then(()=>saveToDrive(true)).then(()=>{
+    updateDriveUI(); toast('🎉 드라이브에 전부 저장 완료!');
+  });
+}
+
 // ── 연결 ─────────────────────────────────────────
 function connectDrive(){
+  // iOS PWA 모드: 팝업 불가 → implicit flow redirect 사용
+  if(isIOS() && isIOSPWA()){
+    const redirectUri = encodeURIComponent(location.origin + location.pathname);
+    const url = `https://accounts.google.com/o/oauth2/v2/auth`
+      + `?client_id=${encodeURIComponent(D_CLIENT_ID)}`
+      + `&redirect_uri=${redirectUri}`
+      + `&response_type=token`
+      + `&scope=${encodeURIComponent(D_SCOPE)}`
+      + `&prompt=select_account`;
+    location.href = url;
+    return;
+  }
+  // 일반 브라우저 (팝업)
+  if(typeof google === 'undefined' || !google.accounts){
+    toast('잠시 후 다시 시도해주세요 (로딩 중)'); return;
+  }
   try{
     const client = google.accounts.oauth2.initTokenClient({
       client_id: D_CLIENT_ID, scope: D_SCOPE,
       callback: async(resp)=>{
-        if(resp.error){ toast('연결 실패 😢'); return; }
+        if(resp.error){
+          if(resp.error==='access_denied'){
+            toast('❌ 구글 계정 접근 거부됨\n아래 안내를 확인해주세요');
+            showOAuthHelp();
+          } else {
+            toast('연결 실패: '+resp.error);
+          }
+          return;
+        }
         dToken=resp.access_token; dConnected=true;
         localStorage.setItem('d_token',dToken);
         localStorage.setItem('d_ever','1');
@@ -887,8 +1065,34 @@ function connectDrive(){
         toast('🎉 드라이브에 전부 저장 완료!');
       }
     });
-    client.requestAccessToken();
+    client.requestAccessToken({prompt:'select_account'});
   }catch(e){ toast('잠시 후 다시 시도해주세요'); }
+}
+
+// ── access_denied 안내 팝업 ──────────────────────
+function showOAuthHelp(){
+  const el = document.getElementById('oauth-help-modal');
+  if(el){ el.style.display='flex'; return; }
+  const m = document.createElement('div');
+  m.id='oauth-help-modal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  m.innerHTML=`<div style="background:var(--surface);border-radius:20px;padding:24px;max-width:360px;width:100%;border:1px solid var(--border)">
+    <h3 style="color:var(--a1);margin-bottom:12px;font-size:16px">⚠️ 구글 연동 오류 해결 방법</h3>
+    <p style="color:var(--text);font-size:13px;line-height:1.8;margin-bottom:16px">
+      앱이 아직 구글 검증을 받지 않아서<br>
+      <b style="color:var(--yellow)">테스트 사용자 등록</b>이 필요해요.<br><br>
+      아래 순서로 해결해주세요:<br>
+      <b>1.</b> <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank" style="color:var(--a1)">Google Cloud Console</a> 접속<br>
+      <b>2.</b> 왼쪽 메뉴 → <b>Google Auth Platform → 대상</b><br>
+      <b>3.</b> <b>테스트 사용자</b> 섹션 → <b>+ 사용자 추가</b><br>
+      <b>4.</b> 본인 구글 이메일 입력 후 저장<br>
+      <b>5.</b> 앱으로 돌아와 다시 연결 시도!<br><br>
+      <span style="color:var(--sub);font-size:12px">💡 다른 사람도 쓰게 하려면 "앱 게시"를 눌러<br>프로덕션으로 전환하세요.</span>
+    </p>
+    <button onclick="document.getElementById('oauth-help-modal').style.display='none'"
+      style="width:100%;padding:12px;border-radius:12px;border:none;background:var(--grad);color:#fff;font-weight:700;font-size:14px;cursor:pointer">확인</button>
+  </div>`;
+  document.body.appendChild(m);
 }
 
 // ── 루트 폴더 📁스레드노트 확보 ──────────────────────
@@ -1180,8 +1384,18 @@ document.querySelectorAll('.sort-chip').forEach(c=>{
   c.addEventListener('click',()=>{
     homeSort=c.dataset.sort;
     document.querySelectorAll('.sort-chip').forEach(x=>x.classList.toggle('active',x===c));
+    // 조회수순 선택 시 범위 필터 표시
+    document.getElementById('views-range-row').style.display=homeSort==='views'?'flex':'none';
     renderHome();
   });
+});
+
+// ══ 조회수 범위 필터 ═══════════════════════════════
+document.getElementById('views-range-row').addEventListener('click',e=>{
+  const chip=e.target.closest('.vchip'); if(!chip) return;
+  homeViewRange=chip.dataset.vrange;
+  document.querySelectorAll('.vchip').forEach(c=>c.classList.toggle('active',c===chip));
+  renderHome();
 });
 
 // ══ 플랫폼 필터 ═══════════════════════════════════════
@@ -1281,6 +1495,17 @@ function renderHome(){
   let f=posts.filter(matchFilter);
   // 플랫폼 필터
   if(homePlatFilter!=='all') f=f.filter(p=>p.platform===homePlatFilter);
+  // 조회수 범위 필터
+  if(homeSort==='views' && homeViewRange!=='all'){
+    f=f.filter(p=>{
+      const v=p.views||0;
+      if(homeViewRange==='low')  return v<1000;
+      if(homeViewRange==='mid')  return v>=1000 && v<10000;
+      if(homeViewRange==='high') return v>=10000 && v<100000;
+      if(homeViewRange==='top')  return v>=100000;
+      return true;
+    });
+  }
   // 정렬
   if(homeSort==='views') f=[...f].sort((a,b)=>(b.views||0)-(a.views||0));
   else if(homeSort==='repost') f=[...f].filter(p=>p.repostInterval>0).sort((a,b)=>{
@@ -1388,10 +1613,14 @@ function updateCatSel(){
 }
 
 // ══ 작성 모달 ══════════════════════════════════════
-function openWrite(post){
+function openWrite(post, draftMode=false){
   editingId=post?post.id:null;
   pendingMedia=post?(post.media?[...post.media]:[]):[];
   document.getElementById('write-title').textContent=post?'✏️ 게시글 수정':'✨ 게시글 추가';
+  const saveBtn=document.getElementById('write-save');
+  saveBtn.textContent=draftMode?'📦 보관함 저장':'💾 저장하기';
+  saveBtn._draftMode=draftMode;
+  if(!draftMode){ curDraftId=null; }
   document.getElementById('f-link').value=post?.link||'';
   document.getElementById('f-platform').value=post?.platform||'threads';
   document.getElementById('f-text').value=post?.text||'';
@@ -1435,8 +1664,27 @@ document.getElementById('write-save').addEventListener('click',()=>{
   const text=document.getElementById('f-text').value.trim();
   const link=document.getElementById('f-link').value.trim();
   if(!text&&!link&&!pendingMedia.length){ toast('내용을 입력해주세요 🙏'); return; }
+  const saveBtn=document.getElementById('write-save');
+  const isDraftMode=saveBtn._draftMode===true;
   const inputPostDate=document.getElementById('f-postdate').value;
-  const data={text,link,platform:document.getElementById('f-platform').value,category:document.getElementById('f-category').value,comment:document.getElementById('f-comment').value.trim(),views:parseInt(document.getElementById('f-views').value)||0,media:[...pendingMedia],postDate:inputPostDate||new Date().toISOString().slice(0,10),repostInterval:parseInt(document.getElementById('f-repost-interval').value)||0};
+  const data={text,link,platform:document.getElementById('f-platform').value,category:document.getElementById('f-category').value,comment:document.getElementById('f-comment').value.trim(),views:parseInt(document.getElementById('f-views').value)||0,media:[...pendingMedia],repostInterval:parseInt(document.getElementById('f-repost-interval').value)||0};
+
+  if(isDraftMode){
+    // 보관함 저장 (postDate 없이, 또는 입력한 거 있으면 포함)
+    if(inputPostDate) data.postDate=inputPostDate;
+    if(curDraftId){
+      const idx=drafts.findIndex(x=>x.id===curDraftId);
+      if(idx!==-1) drafts[idx]={...drafts[idx],...data};
+    } else {
+      drafts.push({id:Date.now().toString(), date:new Date().toISOString(), ...data});
+    }
+    saveBtn._draftMode=false; curDraftId=null;
+    saveLocal(); closeWrite(); renderDrafts(); toast('📦 보관함에 저장됐어요!');
+    return;
+  }
+
+  // 일반 게시글 저장
+  data.postDate=inputPostDate||new Date().toISOString().slice(0,10);
   if(editingId){
     const idx=posts.findIndex(p=>p.id===editingId);
     if(idx!==-1) posts[idx]={...posts[idx],...data};
@@ -1540,6 +1788,7 @@ function switchScreen(name){
   document.getElementById('screen-'+name).classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.screen===name));
   if(name==='home') renderHome();
+  else if(name==='draft') renderDrafts();
   else if(name==='category') renderCatGrid();
   else if(name==='search'){ renderSchips(); doSearch(); }
   else if(name==='settings') renderSettings();
@@ -1634,9 +1883,132 @@ document.getElementById('popup-connect-btn').addEventListener('click', ()=>{
   connectDrive();
 });
 
+// ══ 보관함(드래프트) ════════════════════════════════
+let curDraftId=null;
+
+function renderDrafts(){
+  const list=document.getElementById('draft-list'); list.innerHTML='';
+  if(!drafts.length){
+    list.innerHTML=`<div class="empty-state"><div class="empty-icon">📦</div><p>보관함이 비어있어요 🌸<br>아직 올리지 않을 글을 여기 보관하세요!</p></div>`;
+    return;
+  }
+  [...drafts].reverse().forEach(d=>{
+    const div=document.createElement('div'); div.className='draft-card';
+    const mcount=d.media?d.media.length:0;
+    div.innerHTML=`
+      <div class="draft-card-body">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:18px">${PI[d.platform]||'🔗'}</span>
+          <span style="font-size:12px;color:var(--sub)">💾 ${dateLabel(d.date)}</span>
+          ${mcount?`<span class="draft-label">📎 ${mcount}개</span>`:''}
+          <span class="draft-label">${esc(d.category||'기타')}</span>
+        </div>
+        ${d.text?`<div class="draft-preview">${esc(d.text)}</div>`:'<div class="draft-preview" style="color:var(--sub);font-style:italic">내용 없음</div>'}
+        <div class="draft-footer">
+          <button class="draft-edit-btn" data-id="${d.id}">✏️ 수정</button>
+          <button class="draft-del-btn" data-id="${d.id}">🗑️</button>
+          <button class="draft-publish-btn" data-id="${d.id}">📤 게시하기</button>
+        </div>
+      </div>`;
+    div.querySelector('.draft-publish-btn').addEventListener('click',e=>{
+      e.stopPropagation(); publishDraft(d.id);
+    });
+    div.querySelector('.draft-edit-btn').addEventListener('click',e=>{
+      e.stopPropagation(); openDraftEdit(d.id);
+    });
+    div.querySelector('.draft-del-btn').addEventListener('click',e=>{
+      e.stopPropagation();
+      if(!confirm('보관함에서 삭제할까요?')) return;
+      drafts=drafts.filter(x=>x.id!==d.id); saveLocal(); renderDrafts(); toast('삭제됐어요 🗑️');
+    });
+    list.appendChild(div);
+  });
+}
+
+// 보관함 → 게시글로 이동
+function publishDraft(id){
+  const d=drafts.find(x=>x.id===id); if(!d) return;
+  // 오늘 날짜로 게시일 설정
+  const today=new Date().toISOString().slice(0,10);
+  const post={...d, postDate:today, date:new Date().toISOString()};
+  posts.unshift(post);
+  drafts=drafts.filter(x=>x.id!==id);
+  saveLocal(); renderDrafts();
+  toast('🎉 게시글로 올렸어요! 홈에서 확인하세요 🌸');
+}
+
+// 보관함 글 수정 (작성 모달 재활용)
+function openDraftEdit(id){
+  const d=drafts.find(x=>x.id===id); if(!d) return;
+  curDraftId=id;
+  // 작성 모달 열고 드래프트 데이터 채우기
+  openWrite(null, true);
+  setTimeout(()=>{
+    document.getElementById('write-title').textContent='📦 보관함 글 수정';
+    document.getElementById('f-text').value=d.text||'';
+    document.getElementById('f-comment').value=d.comment||'';
+    document.getElementById('f-link').value=d.link||'';
+    document.getElementById('f-views').value=d.views||'';
+    document.getElementById('f-platform').value=d.platform||'threads';
+    updateCatSel();
+    document.getElementById('f-category').value=d.category||categories[0]||'기타';
+    document.getElementById('f-postdate').value=d.postDate||'';
+    document.getElementById('f-repost-interval').value=d.repostInterval||'';
+    pendingMedia=[...(d.media||[])];
+    renderMpg();
+    // 저장 버튼 바꾸기
+    const saveBtn=document.getElementById('write-save');
+    saveBtn.textContent='📦 보관함 저장';
+    saveBtn._draftMode=true;
+  },50);
+}
+
+// 보관함에 새 글 추가
+function openDraftWrite(){
+  curDraftId=null;
+  openWrite(null, true);
+  setTimeout(()=>{
+    document.getElementById('write-title').textContent='📦 보관함에 추가';
+    const saveBtn=document.getElementById('write-save');
+    saveBtn.textContent='📦 보관함 저장';
+    saveBtn._draftMode=true;
+  },50);
+}
+
+document.getElementById('draft-add-btn').addEventListener('click', openDraftWrite);
+
+// 작성 모달 저장 - 드래프트 모드 분기 처리
+// (기존 write-save 리스너에 드래프트 처리 추가 - 아래 패치로 처리)
+
+// ══ 메모장 ═══════════════════════════════════════
+const memoTA = document.getElementById('memo-textarea');
+const memoCount = document.getElementById('memo-count');
+
+// 저장된 메모 불러오기
+memoTA.value = localStorage.getItem('tn3_memo')||'';
+memoCount.textContent = memoTA.value.length+'자';
+
+document.getElementById('memo-fab').addEventListener('click',()=>{
+  document.getElementById('memo-popup').classList.toggle('open');
+  if(document.getElementById('memo-popup').classList.contains('open')) memoTA.focus();
+});
+document.getElementById('memo-close').addEventListener('click',()=>{
+  document.getElementById('memo-popup').classList.remove('open');
+});
+memoTA.addEventListener('input',()=>{
+  memoCount.textContent=memoTA.value.length+'자';
+  localStorage.setItem('tn3_memo', memoTA.value);
+});
+document.getElementById('memo-clear').addEventListener('click',()=>{
+  if(memoTA.value && !confirm('메모를 모두 지울까요?')) return;
+  memoTA.value=''; memoCount.textContent='0자';
+  localStorage.setItem('tn3_memo','');
+});
+
 // ══ 초기화 ════════════════════════════════════════
 loadLocal();
 loadDriveState();   // 드라이브 연결 상태 복원
+handleOAuthRedirect(); // iOS PWA redirect 결과 처리
 updateDriveUI();
 updateCatSel();
 renderHome();
