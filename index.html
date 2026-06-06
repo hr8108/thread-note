@@ -746,17 +746,9 @@ label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weigh
           </div>
           <div class="gdrive-guide" id="gdrive-guide">
             <b>📌 처음 사용법</b><br>
-            1. 아래에 Client ID를 입력하세요<br>
-            2. "구글 계정 연결" 버튼 클릭<br>
-            3. 구글 계정으로 로그인<br>
-            4. 이후 자동으로 내 드라이브에 저장됩니다 ✨<br><br>
-            <b>🔑 Client ID가 없나요?</b><br>
-            Client ID 없이도 앱은 정상 사용 가능해요.<br>
-            드라이브 연동은 선택 사항이에요.<br>
-            <div class="client-id-row">
-              <input type="text" id="client-id-input" placeholder="Google OAuth Client ID 입력...">
-              <button class="btn btn-ghost btn-sm" id="client-id-save-btn">저장</button>
-            </div>
+            1. "🔗 구글 계정 연결" 버튼 클릭<br>
+            2. 구글 계정으로 로그인<br>
+            3. 이후 글 저장할 때마다 자동으로 드라이브에 저장됩니다 ✨
           </div>
         </div>
       </div>
@@ -1452,38 +1444,40 @@ async function savePostToDrive(post){
 
   const mediaIds=post.dMediaIds?[...post.dMediaIds]:[];
   for(let i=0;i<resolvedMedia.length;i++){
-    if(mediaIds[i]) continue; // 이미 업로드된 항목은 건너뜀 (중복 방지)
     const m=resolvedMedia[i];
 
-    let uploadBlob=null, uploadMime='', uploadExt='', uploadFname='';
+    let uploadBlob=null, uploadMime='', uploadFname='';
 
     if(m.type==='video'&&m.blob instanceof Blob){
-      // iOS 영상: blob 직접 사용
       uploadBlob=m.blob;
       uploadMime=m.blob.type||'video/mp4';
-      uploadExt=(m.name||'영상').split('.').pop()||'mp4';
+      const uploadExt=(m.name||'영상').split('.').pop()||'mp4';
       uploadFname=`영상${i+1}.${uploadExt}`;
     } else if(m.dataUrl&&m.dataUrl.startsWith('data:')){
-      // base64 → blob 변환 (Android 영상, 사진)
       try{
         const {blob,mime,ext}=b64toBlob(m.dataUrl);
-        uploadBlob=blob; uploadMime=mime; uploadExt=ext;
+        uploadBlob=blob; uploadMime=mime;
         uploadFname=`${m.type==='video'?'영상':'사진'}${i+1}.${ext}`;
       }catch(e){ console.error('b64toBlob 실패',e); continue; }
     } else {
-      continue; // 유효한 데이터 없음
+      continue;
     }
 
-    // 중복 파일 검색 후 업로드
     try{
-      const fq=encodeURIComponent(`name='${uploadFname}' and '${folderId}' in parents and trashed=false`);
-      const fr=await fetch(`https://www.googleapis.com/drive/v3/files?q=${fq}&fields=files(id)`,{headers:{Authorization:'Bearer '+dToken}});
-      const ff=await fr.json();
-      if(ff.files&&ff.files.length>0){
-        mediaIds[i]=ff.files[0].id;
+      if(mediaIds[i]){
+        // 기존 Drive 파일 업데이트 (덮어쓰기)
         await driveUpdate(mediaIds[i],uploadBlob,uploadMime);
       } else {
-        mediaIds[i]=await driveUpload(uploadFname,uploadBlob,uploadMime,folderId);
+        // 신규: 폴더 내 동명 파일 있으면 재사용, 없으면 새로 생성
+        const fq=encodeURIComponent(`name='${uploadFname}' and '${folderId}' in parents and trashed=false`);
+        const fr=await fetch(`https://www.googleapis.com/drive/v3/files?q=${fq}&fields=files(id)`,{headers:{Authorization:'Bearer '+dToken}});
+        const ff=await fr.json();
+        if(ff.files&&ff.files.length>0){
+          mediaIds[i]=ff.files[0].id;
+          await driveUpdate(mediaIds[i],uploadBlob,uploadMime);
+        } else {
+          mediaIds[i]=await driveUpload(uploadFname,uploadBlob,uploadMime,folderId);
+        }
       }
     }catch(e){ console.error('미디어 업로드 실패',i,e); }
   }
