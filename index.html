@@ -1015,16 +1015,15 @@ function idbGetAll(){
 
 // ══ 로컬 저장 ══════════════════════════════════════
 // posts 저장: 미디어 dataUrl → IDB, 나머지 → localStorage
-function saveLocal(){
-  // 미디어를 IDB에 따로 저장하고 localStorage엔 메타만 남김
+// skipDrive=true이면 드라이브 자동저장 스케줄 안 함 (saveToDrive 내부 호출 시 무한루프 방지)
+function saveLocal(skipDrive=false){
   const slim=posts.map(p=>{
     const media=p.media||[];
     const needsIdb=media.some(m=>
-      (m.blob instanceof Blob) ||  // iOS 영상 Blob
-      (m.dataUrl&&m.dataUrl.length>200&&!m.dataUrl.startsWith('__idb__')) // base64
+      (m.blob instanceof Blob) ||
+      (m.dataUrl&&m.dataUrl.length>200&&!m.dataUrl.startsWith('__idb__'))
     );
     if(needsIdb){
-      // IDB 저장: iOS 영상=Blob, 나머지=dataUrl 그대로
       const idbMedia=media.map(m=>{
         if(m.type==='video'&&m.blob instanceof Blob)
           return {type:'video',name:m.name||'',blob:m.blob,thumb:m.thumb||null};
@@ -1040,7 +1039,7 @@ function saveLocal(){
     localStorage.setItem('tn3_cats',JSON.stringify(categories));
     localStorage.setItem('tn3_theme',curTheme);
     localStorage.setItem('tn3_drafts',JSON.stringify(drafts));
-    scheduleDriveSave();
+    if(!skipDrive) scheduleDriveSave();
   }catch(e){
     toast('❌ 저장 실패: 설정 → 이전 데이터 정리가 필요해요');
     console.error('saveLocal error',e);
@@ -1335,37 +1334,32 @@ function handleDriveTokenExpiry(){
 
 // ── 드라이브 resumable 업로드 (대용량 파일용) ────────
 async function driveUploadResumable(name,blob,mime,parentId){
-  // 1단계: 세션 URL 발급
+  // 1단계: 세션 URL 발급 (Content-Length는 브라우저 금지헤더라 제외)
   const init=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id',{
     method:'POST',
-    headers:{Authorization:'Bearer '+dToken,'Content-Type':'application/json',
-             'X-Upload-Content-Type':mime,'X-Upload-Content-Length':String(blob.size)},
+    headers:{Authorization:'Bearer '+dToken,'Content-Type':'application/json','X-Upload-Content-Type':mime},
     body:JSON.stringify({name,mimeType:mime,parents:[parentId]})
   });
   if(init.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
   const uploadUrl=init.headers.get('Location');
   if(!uploadUrl) throw new Error('no_upload_url');
   // 2단계: 파일 전송
-  const r=await fetch(uploadUrl,{
-    method:'PUT',
-    headers:{'Content-Type':mime,'Content-Length':String(blob.size)},
-    body:blob
-  });
+  const r=await fetch(uploadUrl,{method:'PUT',headers:{'Content-Type':mime},body:blob});
   if(r.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
-  return (await r.json()).id;
+  const json=await r.json();
+  return json.id;
 }
 
 async function driveUpdateResumable(fileId,blob,mime){
   const init=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=resumable`,{
     method:'PATCH',
-    headers:{Authorization:'Bearer '+dToken,'Content-Type':'application/json',
-             'X-Upload-Content-Type':mime,'X-Upload-Content-Length':String(blob.size)},
+    headers:{Authorization:'Bearer '+dToken,'Content-Type':'application/json','X-Upload-Content-Type':mime},
     body:JSON.stringify({mimeType:mime})
   });
   if(init.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
   const uploadUrl=init.headers.get('Location');
   if(!uploadUrl) throw new Error('no_upload_url');
-  await fetch(uploadUrl,{method:'PUT',headers:{'Content-Type':mime,'Content-Length':String(blob.size)},body:blob});
+  await fetch(uploadUrl,{method:'PUT',headers:{'Content-Type':mime},body:blob});
 }
 
 const MULTIPART_LIMIT=4*1024*1024; // 4MB 이하만 multipart, 초과는 resumable
@@ -1399,11 +1393,12 @@ async function savePostToDrive(post){
   const ymd=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
   const folderName=`${ymd}_${post.category||'기타'}_${post.id.slice(-4)}`;
 
-  // 게시글 폴더 찾거나 만들기
+  // 게시글 폴더 (중복 방지: 항상 이름으로 검색 후 재사용)
   let folderId = post.dFolderId||null;
   if(!folderId){
     const q=encodeURIComponent(`name='${folderName}' and '${dRootId}' in parents and trashed=false`);
     const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`,{headers:{Authorization:'Bearer '+dToken}});
+    if(r.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
     const fd=await r.json();
     if(fd.files&&fd.files.length>0){
       folderId=fd.files[0].id;
@@ -1412,62 +1407,85 @@ async function savePostToDrive(post){
         method:'POST',headers:{Authorization:'Bearer '+dToken,'Content-Type':'application/json'},
         body:JSON.stringify({name:folderName,mimeType:'application/vnd.google-apps.folder',parents:[dRootId]})
       });
+      if(res.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
       folderId=(await res.json()).id;
     }
     post.dFolderId=folderId;
   }
 
-  // 내용.txt 저장
+  // 내용.txt (중복 방지: id 있으면 update, 없으면 폴더 내 검색 후 재사용)
   const txtContent=[
     `📅 게시일: ${post.postDate||post.date.slice(0,10)}`,
     `📱 플랫폼: ${post.platform||''}`,
     `📂 카테고리: ${post.category||''}`,
     `👁️ 조회수: ${(post.views||0).toLocaleString()}`,
-    `🔗 링크: ${post.link||'없음'}`,
-    ``,
-    `📝 내용:`,
-    post.text||'',
+    `🔗 링크: ${post.link||'없음'}`,``,
+    `📝 내용:`,post.text||'',
     post.comment?`\n💬 내 댓글:\n${post.comment}`:''
   ].join('\n');
-
   const txtBlob=new Blob([txtContent],{type:'text/plain'});
   if(post.dTxtId){
     await driveUpdate(post.dTxtId,txtBlob,'text/plain');
   } else {
-    post.dTxtId=await driveUpload('내용.txt',txtBlob,'text/plain',folderId);
+    // 폴더 안에 이미 내용.txt 있는지 확인 (중복 방지)
+    const tq=encodeURIComponent(`name='내용.txt' and '${folderId}' in parents and trashed=false`);
+    const tr=await fetch(`https://www.googleapis.com/drive/v3/files?q=${tq}&fields=files(id)`,{headers:{Authorization:'Bearer '+dToken}});
+    const tf=await tr.json();
+    if(tf.files&&tf.files.length>0){
+      post.dTxtId=tf.files[0].id;
+      await driveUpdate(post.dTxtId,txtBlob,'text/plain');
+    } else {
+      post.dTxtId=await driveUpload('내용.txt',txtBlob,'text/plain',folderId);
+    }
   }
 
-  // 사진·영상 업로드 (IDB 마커 있으면 IDB에서 실제 데이터 복원)
+  // 사진·영상: IDB에서 항상 최신 데이터 가져옴 (blob: URL 포함)
   let resolvedMedia=post.media||[];
-  if(resolvedMedia.some(m=>!m.dataUrl||m.dataUrl==='__idb__')){
+  // blob: URL이나 __idb__ 마커가 있으면 IDB에서 실제 데이터 사용
+  const needIdb=resolvedMedia.some(m=>
+    !m.dataUrl || m.dataUrl==='__idb__' || m.dataUrl.startsWith('blob:')
+  );
+  if(needIdb){
     const idbData=await idbGet('pm_'+post.id);
     if(idbData&&idbData.length>0) resolvedMedia=idbData;
   }
+
   const mediaIds=post.dMediaIds?[...post.dMediaIds]:[];
   for(let i=0;i<resolvedMedia.length;i++){
+    if(mediaIds[i]) continue; // 이미 업로드된 항목은 건너뜀 (중복 방지)
     const m=resolvedMedia[i];
-    // 영상 Blob 직접 업로드 (iOS 방식)
+
+    let uploadBlob=null, uploadMime='', uploadExt='', uploadFname='';
+
     if(m.type==='video'&&m.blob instanceof Blob){
+      // iOS 영상: blob 직접 사용
+      uploadBlob=m.blob;
+      uploadMime=m.blob.type||'video/mp4';
+      uploadExt=(m.name||'영상').split('.').pop()||'mp4';
+      uploadFname=`영상${i+1}.${uploadExt}`;
+    } else if(m.dataUrl&&m.dataUrl.startsWith('data:')){
+      // base64 → blob 변환 (Android 영상, 사진)
       try{
-        const mime=m.blob.type||'video/mp4';
-        const ext=(m.name||'영상').split('.').pop()||'mp4';
-        const fname=`영상${i+1}.${ext}`;
-        if(mediaIds[i]) await driveUpdate(mediaIds[i],m.blob,mime);
-        else mediaIds[i]=await driveUpload(fname,m.blob,mime,folderId);
-      }catch(e){}
-      continue;
+        const {blob,mime,ext}=b64toBlob(m.dataUrl);
+        uploadBlob=blob; uploadMime=mime; uploadExt=ext;
+        uploadFname=`${m.type==='video'?'영상':'사진'}${i+1}.${ext}`;
+      }catch(e){ console.error('b64toBlob 실패',e); continue; }
+    } else {
+      continue; // 유효한 데이터 없음
     }
-    // 이미지 base64 → Blob 변환 후 업로드
-    if(!m.dataUrl||m.dataUrl==='__idb__'||!m.dataUrl.startsWith('data:')) continue;
+
+    // 중복 파일 검색 후 업로드
     try{
-      const {blob,mime,ext}=b64toBlob(m.dataUrl);
-      const fname=`${m.type==='video'?'영상':'사진'}${i+1}.${ext}`;
-      if(mediaIds[i]){
-        await driveUpdate(mediaIds[i],blob,mime);
+      const fq=encodeURIComponent(`name='${uploadFname}' and '${folderId}' in parents and trashed=false`);
+      const fr=await fetch(`https://www.googleapis.com/drive/v3/files?q=${fq}&fields=files(id)`,{headers:{Authorization:'Bearer '+dToken}});
+      const ff=await fr.json();
+      if(ff.files&&ff.files.length>0){
+        mediaIds[i]=ff.files[0].id;
+        await driveUpdate(mediaIds[i],uploadBlob,uploadMime);
       } else {
-        mediaIds[i]=await driveUpload(fname,blob,mime,folderId);
+        mediaIds[i]=await driveUpload(uploadFname,uploadBlob,uploadMime,folderId);
       }
-    }catch(e){}
+    }catch(e){ console.error('미디어 업로드 실패',i,e); }
   }
   post.dMediaIds=mediaIds;
 }
@@ -1512,7 +1530,7 @@ async function saveToDrive(silent=false){
       }
       localStorage.setItem('d_index',indexId);
     }
-    saveLocal(); // dFolderId, dMediaIds 등 로컬에 반영
+    saveLocal(true); // dFolderId, dMediaIds 등 로컬에 반영 (무한루프 방지: skipDrive=true)
     if(!silent) toast('☁️ 드라이브에 저장됐어요!');
   }catch(e){ if(!silent) toast('저장 실패 😢 다시 연결해보세요'); }
 }
