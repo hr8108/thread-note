@@ -1333,8 +1333,46 @@ function handleDriveTokenExpiry(){
   toast('⚠️ 구글 드라이브 연결이 만료됐어요\n설정 → 드라이브 재연결 필요');
 }
 
+// ── 드라이브 resumable 업로드 (대용량 파일용) ────────
+async function driveUploadResumable(name,blob,mime,parentId){
+  // 1단계: 세션 URL 발급
+  const init=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id',{
+    method:'POST',
+    headers:{Authorization:'Bearer '+dToken,'Content-Type':'application/json',
+             'X-Upload-Content-Type':mime,'X-Upload-Content-Length':String(blob.size)},
+    body:JSON.stringify({name,mimeType:mime,parents:[parentId]})
+  });
+  if(init.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
+  const uploadUrl=init.headers.get('Location');
+  if(!uploadUrl) throw new Error('no_upload_url');
+  // 2단계: 파일 전송
+  const r=await fetch(uploadUrl,{
+    method:'PUT',
+    headers:{'Content-Type':mime,'Content-Length':String(blob.size)},
+    body:blob
+  });
+  if(r.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
+  return (await r.json()).id;
+}
+
+async function driveUpdateResumable(fileId,blob,mime){
+  const init=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=resumable`,{
+    method:'PATCH',
+    headers:{Authorization:'Bearer '+dToken,'Content-Type':'application/json',
+             'X-Upload-Content-Type':mime,'X-Upload-Content-Length':String(blob.size)},
+    body:JSON.stringify({mimeType:mime})
+  });
+  if(init.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
+  const uploadUrl=init.headers.get('Location');
+  if(!uploadUrl) throw new Error('no_upload_url');
+  await fetch(uploadUrl,{method:'PUT',headers:{'Content-Type':mime,'Content-Length':String(blob.size)},body:blob});
+}
+
+const MULTIPART_LIMIT=4*1024*1024; // 4MB 이하만 multipart, 초과는 resumable
+
 // ── 드라이브 파일 업로드 헬퍼 ─────────────────────────
 async function driveUpload(name,blob,mime,parentId){
+  if(blob.size>MULTIPART_LIMIT) return driveUploadResumable(name,blob,mime,parentId);
   const form=new FormData();
   form.append('metadata',new Blob([JSON.stringify({name,mimeType:mime,parents:[parentId]})],{type:'application/json'}));
   form.append('file',blob);
@@ -1347,6 +1385,7 @@ async function driveUpload(name,blob,mime,parentId){
 
 // ── 드라이브 파일 업데이트 헬퍼 ───────────────────────
 async function driveUpdate(fileId,blob,mime){
+  if(blob.size>MULTIPART_LIMIT){ await driveUpdateResumable(fileId,blob,mime); return; }
   const r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,{
     method:'PATCH',headers:{Authorization:'Bearer '+dToken,'Content-Type':mime},body:blob
   });
