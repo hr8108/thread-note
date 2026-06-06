@@ -1722,8 +1722,14 @@ document.getElementById('write-save').addEventListener('click',()=>{
   if(editingId){
     const idx=posts.findIndex(p=>p.id===editingId);
     if(idx!==-1) posts[idx]={...posts[idx],...data};
-  } else { posts.unshift({id:Date.now().toString(),date:new Date().toISOString(),...data}); }
-  saveLocal(); closeWrite(); refresh(); toast(editingId?'수정 완료! ✅':'저장 완료! 🎉');
+    saveLocal(); closeWrite(); refresh(); toast('수정 완료! ✅');
+  } else {
+    posts.unshift({id:Date.now().toString(),date:new Date().toISOString(),...data});
+    saveLocal(); closeWrite();
+    // 저장 후 항상 홈으로 이동해서 새 글 보이게
+    switchScreen('home');
+    toast('저장 완료! 🎉');
+  }
 });
 
 // ══ 재게시 박스 렌더 ══════════════════════════════════
