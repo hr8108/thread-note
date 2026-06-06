@@ -987,11 +987,29 @@ let searchCatFilter='all', curDetailId=null, curTheme='black';
 
 // ══ 로컬 저장 ══════════════════════════════════════
 function saveLocal(){
-  localStorage.setItem('tn3_posts', JSON.stringify(posts));
-  localStorage.setItem('tn3_cats', JSON.stringify(categories));
-  localStorage.setItem('tn3_theme', curTheme);
-  localStorage.setItem('tn3_drafts', JSON.stringify(drafts));
-  scheduleDriveSave();
+  try{
+    localStorage.setItem('tn3_posts', JSON.stringify(posts));
+    localStorage.setItem('tn3_cats', JSON.stringify(categories));
+    localStorage.setItem('tn3_theme', curTheme);
+    localStorage.setItem('tn3_drafts', JSON.stringify(drafts));
+    scheduleDriveSave();
+  } catch(e){
+    // 용량 초과(QuotaExceededError) 시 미디어 썸네일만 제거하고 재시도
+    console.warn('localStorage 용량 초과, 미디어 압축 저장 시도');
+    try{
+      const slim = posts.map(p=>({
+        ...p,
+        media:(p.media||[]).map(m=>({...m, dataUrl: m.dataUrl.length>50000 ? m.dataUrl.slice(0,50000)+'...(압축됨)' : m.dataUrl}))
+      }));
+      localStorage.setItem('tn3_posts', JSON.stringify(slim));
+      localStorage.setItem('tn3_cats', JSON.stringify(categories));
+      localStorage.setItem('tn3_theme', curTheme);
+      toast('⚠️ 저장 용량이 부족해요!\n사진은 구글 드라이브에만 보관됩니다.');
+      scheduleDriveSave();
+    }catch(e2){
+      toast('❌ 저장 실패: 저장공간이 꽉 찼어요\n구글 드라이브 연동을 이용해주세요');
+    }
+  }
 }
 function loadLocal(){
   try{ posts=JSON.parse(localStorage.getItem('tn3_posts')||'[]'); }catch(e){ posts=[]; }
@@ -1713,7 +1731,33 @@ document.getElementById('f-media').addEventListener('change',async function(){
   }
   this.value=''; renderMpg();
 });
-function toDataUrl(f){ return new Promise(res=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(f); }); }
+function toDataUrl(f){
+  return new Promise(res=>{
+    // 영상은 그대로
+    if(f.type.startsWith('video')){
+      const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(f);
+      return;
+    }
+    // 이미지는 캔버스로 리사이즈 압축 (최대 1200px, JPEG 80%)
+    const url=URL.createObjectURL(f);
+    const img=new Image();
+    img.onload=()=>{
+      const MAX=1200;
+      let w=img.width, h=img.height;
+      if(w>MAX||h>MAX){
+        if(w>h){ h=Math.round(h*MAX/w); w=MAX; }
+        else{ w=Math.round(w*MAX/h); h=MAX; }
+      }
+      const c=document.createElement('canvas');
+      c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL('image/jpeg',0.8));
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(f); };
+    img.src=url;
+  });
+}
 function closeWrite(){ document.getElementById('write-modal').classList.remove('open'); editingId=null; pendingMedia=[]; }
 document.getElementById('write-x').addEventListener('click',closeWrite);
 document.getElementById('write-cancel').addEventListener('click',closeWrite);
@@ -1742,17 +1786,21 @@ document.getElementById('write-save').addEventListener('click',()=>{
   }
 
   // 일반 게시글 저장
-  data.postDate=inputPostDate||new Date().toISOString().slice(0,10);
-  if(editingId){
-    const idx=posts.findIndex(p=>p.id===editingId);
-    if(idx!==-1) posts[idx]={...posts[idx],...data};
-    saveLocal(); closeWrite(); refresh(); toast('수정 완료! ✅');
-  } else {
-    posts.unshift({id:Date.now().toString(),date:new Date().toISOString(),...data});
-    saveLocal(); closeWrite();
-    // 저장 후 항상 홈으로 이동해서 새 글 보이게
-    switchScreen('home');
-    toast('저장 완료! 🎉');
+  try{
+    data.postDate=inputPostDate||new Date().toISOString().slice(0,10);
+    if(editingId){
+      const idx=posts.findIndex(p=>p.id===editingId);
+      if(idx!==-1) posts[idx]={...posts[idx],...data};
+      saveLocal(); closeWrite(); refresh(); toast('수정 완료! ✅');
+    } else {
+      posts.unshift({id:Date.now().toString(),date:new Date().toISOString(),...data});
+      saveLocal(); closeWrite();
+      switchScreen('home');
+      toast('저장 완료! 🎉');
+    }
+  } catch(err){
+    console.error('저장 오류:', err);
+    toast('❌ 저장 중 오류가 발생했어요\n사진 수를 줄여보세요');
   }
 });
 
