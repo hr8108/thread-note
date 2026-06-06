@@ -298,6 +298,35 @@ label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weigh
 #memo-count{font-size:11px;color:var(--sub)}
 #memo-clear{background:none;border:none;color:var(--sub);font-size:12px;cursor:pointer;padding:4px 8px;border-radius:10px}
 #memo-clear:active{background:var(--card)}
+#memo-save-btn{
+  padding:6px 14px;border-radius:20px;border:none;
+  background:var(--grad);color:#fff;font-size:12px;font-weight:800;cursor:pointer;
+  transition:transform .15s;
+}
+#memo-save-btn:active{transform:scale(.9)}
+#memo-saved-list{
+  max-height:200px;overflow-y:auto;
+  border-top:1px solid var(--border);
+  display:none;
+}
+.memo-saved-item{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:10px 14px;border-bottom:1px solid var(--border);
+  cursor:pointer;transition:background .15s;
+}
+.memo-saved-item:active{background:var(--card)}
+.memo-saved-item:last-child{border-bottom:none}
+.memo-saved-text{
+  flex:1;font-size:12px;color:var(--text);line-height:1.5;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.memo-saved-date{font-size:10px;color:var(--sub);white-space:nowrap;margin-top:1px}
+.memo-saved-del{background:none;border:none;color:var(--sub);font-size:15px;cursor:pointer;padding:0 2px;flex-shrink:0}
+#memo-list-toggle{
+  width:100%;padding:8px;background:none;border:none;border-top:1px solid var(--border);
+  color:var(--sub);font-size:12px;cursor:pointer;font-weight:600;
+}
+#memo-list-toggle:active{background:var(--card)}
 
 /* ══ 플랫폼 필터 ══ */
 .plat-filter-row{display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;scrollbar-width:none}
@@ -789,11 +818,16 @@ label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weigh
     <span id="memo-header-title">📝 메모장</span>
     <button id="memo-close">×</button>
   </div>
-  <textarea id="memo-textarea" placeholder="게시글 보면서 메모해보세요 ✍️&#10;자동으로 저장돼요!"></textarea>
+  <textarea id="memo-textarea" placeholder="게시글 보면서 메모해보세요 ✍️&#10;💾 저장 누르면 목록에 보관돼요!"></textarea>
   <div id="memo-footer">
     <span id="memo-count">0자</span>
-    <button id="memo-clear">🗑️ 지우기</button>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button id="memo-clear">🗑️ 지우기</button>
+      <button id="memo-save-btn">💾 저장</button>
+    </div>
   </div>
+  <button id="memo-list-toggle">📋 저장된 메모 보기 ▾</button>
+  <div id="memo-saved-list"></div>
 </div>
 
 <!-- 작성 모달 -->
@@ -1983,10 +2017,63 @@ document.getElementById('draft-add-btn').addEventListener('click', openDraftWrit
 // ══ 메모장 ═══════════════════════════════════════
 const memoTA = document.getElementById('memo-textarea');
 const memoCount = document.getElementById('memo-count');
+let memoSavedList = [];
 
-// 저장된 메모 불러오기
-memoTA.value = localStorage.getItem('tn3_memo')||'';
-memoCount.textContent = memoTA.value.length+'자';
+function loadMemoData(){
+  memoTA.value = localStorage.getItem('tn3_memo')||'';
+  memoCount.textContent = memoTA.value.length+'자';
+  try{ memoSavedList = JSON.parse(localStorage.getItem('tn3_memo_saved')||'[]'); }catch(e){ memoSavedList=[]; }
+  renderMemoSavedList();
+}
+
+function saveMemoStorage(){
+  localStorage.setItem('tn3_memo', memoTA.value);
+  localStorage.setItem('tn3_memo_saved', JSON.stringify(memoSavedList));
+}
+
+function renderMemoSavedList(){
+  const el = document.getElementById('memo-saved-list');
+  const toggle = document.getElementById('memo-list-toggle');
+  if(!memoSavedList.length){
+    el.style.display='none';
+    toggle.textContent='📋 저장된 메모 없음';
+    toggle.style.display='block';
+    return;
+  }
+  toggle.style.display='block';
+  const isOpen = el.style.display==='block';
+  toggle.textContent = `📋 저장된 메모 ${memoSavedList.length}개 ${isOpen?'▴':'▾'}`;
+  if(!isOpen) return;
+  el.innerHTML='';
+  [...memoSavedList].reverse().forEach((m,ri)=>{
+    const idx = memoSavedList.length-1-ri;
+    const row = document.createElement('div');
+    row.className='memo-saved-item';
+    // 날짜 포맷
+    const d = new Date(m.date);
+    const label = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    row.innerHTML=`
+      <div style="flex:1;min-width:0">
+        <div class="memo-saved-text">${esc(m.text)}</div>
+        <div class="memo-saved-date">${label}</div>
+      </div>
+      <button class="memo-saved-del" title="삭제">×</button>`;
+    // 클릭 → 불러오기
+    row.querySelector('.memo-saved-text').addEventListener('click',()=>{
+      if(memoTA.value.trim() && !confirm('현재 메모를 지우고 불러올까요?')) return;
+      memoTA.value=m.text;
+      memoCount.textContent=m.text.length+'자';
+      localStorage.setItem('tn3_memo', m.text);
+      toast('메모를 불러왔어요 ✅');
+    });
+    row.querySelector('.memo-saved-del').addEventListener('click',e=>{
+      e.stopPropagation();
+      memoSavedList.splice(idx,1);
+      saveMemoStorage(); renderMemoSavedList();
+    });
+    el.appendChild(row);
+  });
+}
 
 document.getElementById('memo-fab').addEventListener('click',()=>{
   document.getElementById('memo-popup').classList.toggle('open');
@@ -2000,9 +2087,31 @@ memoTA.addEventListener('input',()=>{
   localStorage.setItem('tn3_memo', memoTA.value);
 });
 document.getElementById('memo-clear').addEventListener('click',()=>{
-  if(memoTA.value && !confirm('메모를 모두 지울까요?')) return;
+  if(memoTA.value.trim() && !confirm('현재 메모를 지울까요?\n(저장된 목록은 유지됩니다)')) return;
   memoTA.value=''; memoCount.textContent='0자';
   localStorage.setItem('tn3_memo','');
+});
+
+// 💾 저장 버튼
+document.getElementById('memo-save-btn').addEventListener('click',()=>{
+  const txt = memoTA.value.trim();
+  if(!txt){ toast('메모 내용이 없어요 🙏'); return; }
+  memoSavedList.push({ text:txt, date:new Date().toISOString() });
+  saveMemoStorage();
+  memoTA.value=''; memoCount.textContent='0자';
+  localStorage.setItem('tn3_memo','');
+  // 목록 열기
+  document.getElementById('memo-saved-list').style.display='block';
+  renderMemoSavedList();
+  toast('📋 메모가 저장됐어요!');
+});
+
+// 목록 토글
+document.getElementById('memo-list-toggle').addEventListener('click',()=>{
+  const el = document.getElementById('memo-saved-list');
+  const isOpen = el.style.display==='block';
+  el.style.display = isOpen?'none':'block';
+  renderMemoSavedList();
 });
 
 // ══ 초기화 ════════════════════════════════════════
@@ -2013,6 +2122,7 @@ updateDriveUI();
 updateCatSel();
 renderHome();
 handleShare();
+loadMemoData();     // 메모장 데이터 불러오기
 
 // 구글 연결한 적 없고, 닫은 적도 없으면 2초 후 팝업
 setTimeout(()=>{
