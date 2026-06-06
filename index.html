@@ -1015,8 +1015,18 @@ function saveLocal(){
   // 미디어를 IDB에 따로 저장하고 localStorage엔 메타만 남김
   const slim=posts.map(p=>{
     const media=p.media||[];
-    if(media.some(m=>m.dataUrl&&m.dataUrl.length>200&&!m.dataUrl.startsWith('__idb__'))){
-      idbPut('pm_'+p.id, media); // 실제 데이터는 IDB에
+    const needsIdb=media.some(m=>
+      (m.blob instanceof Blob) ||                                          // 영상 Blob (iOS)
+      (m.dataUrl&&m.dataUrl.length>200&&!m.dataUrl.startsWith('__idb__')) // 이미지 base64
+    );
+    if(needsIdb){
+      // IDB에 저장: 이미지는 dataUrl, 영상은 Blob 그대로
+      const idbMedia=media.map(m=>{
+        if(m.type==='video'&&m.blob instanceof Blob)
+          return {type:'video',name:m.name||'',blob:m.blob};
+        return m;
+      });
+      idbPut('pm_'+p.id, idbMedia);
       return {...p, media:media.map(m=>({type:m.type,name:m.name||'',dataUrl:'__idb__'}))};
     }
     return p;
@@ -1044,8 +1054,15 @@ async function restoreMediaFromIDB(){
   const all=await idbGetAll();
   posts=posts.map(p=>{
     const idbMedia=all['pm_'+p.id];
-    if(idbMedia) return {...p,media:idbMedia};
-    return p;
+    if(!idbMedia) return p;
+    // 영상 Blob → objectURL 복원 (iOS/Android 모두 재생 가능)
+    const restored=idbMedia.map(m=>{
+      if(m.type==='video'&&m.blob instanceof Blob){
+        return {type:'video',name:m.name||'',dataUrl:URL.createObjectURL(m.blob),blob:m.blob};
+      }
+      return m;
+    });
+    return {...p,media:restored};
   });
 }
 
@@ -1301,6 +1318,18 @@ async function savePostToDrive(post){
   const mediaIds=post.dMediaIds?[...post.dMediaIds]:[];
   for(let i=0;i<resolvedMedia.length;i++){
     const m=resolvedMedia[i];
+    // 영상 Blob 직접 업로드 (iOS 방식)
+    if(m.type==='video'&&m.blob instanceof Blob){
+      try{
+        const mime=m.blob.type||'video/mp4';
+        const ext=(m.name||'영상').split('.').pop()||'mp4';
+        const fname=`영상${i+1}.${ext}`;
+        if(mediaIds[i]) await driveUpdate(mediaIds[i],m.blob,mime);
+        else mediaIds[i]=await driveUpload(fname,m.blob,mime,folderId);
+      }catch(e){}
+      continue;
+    }
+    // 이미지 base64 → Blob 변환 후 업로드
     if(!m.dataUrl||m.dataUrl==='__idb__'||!m.dataUrl.startsWith('data:')) continue;
     try{
       const {blob,mime,ext}=b64toBlob(m.dataUrl);
@@ -1761,8 +1790,17 @@ function renderMpg(){
 }
 document.getElementById('f-media').addEventListener('change',async function(){
   for(const f of Array.from(this.files)){
-    const du=await toDataUrl(f);
-    pendingMedia.push({type:f.type.startsWith('video')?'video':'image',dataUrl:du,name:f.name});
+    const isVideo=f.type.startsWith('video')||/\.(mov|mp4|m4v|avi|mkv|webm|3gp|hevc)$/i.test(f.name||'');
+    if(isVideo){
+      // iOS 대응: 영상은 base64 변환 안 하고 Blob 직접 저장
+      // data URL 방식은 iOS Safari에서 재생 불가
+      const objUrl=URL.createObjectURL(f);
+      pendingMedia.push({type:'video',dataUrl:objUrl,blob:f,name:f.name||'영상'});
+    } else {
+      const du=await toDataUrl(f);
+      if(du) pendingMedia.push({type:'image',dataUrl:du,name:f.name||'이미지'});
+      else toast('⚠️ 이미지 로드 실패');
+    }
   }
   this.value=''; renderMpg();
 });
@@ -1770,6 +1808,8 @@ function toDataUrl(f){
   return new Promise(res=>{
     const r=new FileReader();
     r.onload=e=>res(e.target.result);
+    r.onerror=()=>res(null);   // iOS에서 실패해도 멈추지 않음
+    r.onabort=()=>res(null);
     r.readAsDataURL(f);
   });
 }
