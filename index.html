@@ -389,6 +389,9 @@ label{font-size:12px;color:var(--sub);margin-bottom:7px;display:block;font-weigh
 .mi{overflow:hidden;background:var(--border);position:relative}
 .mi img,.mi video{width:100%;height:100%;object-fit:cover;display:block}
 .vid-play-ov{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:1.5rem;color:#fff;pointer-events:none;text-shadow:0 1px 6px rgba(0,0,0,.8);}
+.vid-ph{width:100%;height:100%;background:linear-gradient(135deg,#1a1a2e,#16213e);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;}
+.vid-ph-icon{font-size:1.6rem;line-height:1;}
+.vid-ph-txt{font-size:11px;color:#aaa;font-weight:600;letter-spacing:.5px;}
 .more-badge{
   position:absolute;bottom:8px;right:8px;background:rgba(0,0,0,.62);
   color:#fff;font-size:12px;font-weight:700;padding:4px 9px;border-radius:10px;
@@ -1241,6 +1244,7 @@ async function ensureRootFolder(){
   if(dRootId) return;
   const q=encodeURIComponent(`name='${D_ROOT}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
   const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`,{headers:{Authorization:'Bearer '+dToken}});
+  if(r.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
   const d=await r.json();
   if(d.files&&d.files.length>0){
     dRootId=d.files[0].id;
@@ -1264,6 +1268,15 @@ function b64toBlob(b64){
   return {blob:new Blob([arr],{type:mime}),mime,ext:mime.split('/')[1].replace('jpeg','jpg').replace('quicktime','mov')};
 }
 
+// ── 토큰 만료 처리 ────────────────────────────────────
+function handleDriveTokenExpiry(){
+  dToken=null; dConnected=false;
+  localStorage.removeItem('d_token');
+  localStorage.removeItem('d_ever');
+  updateDriveUI();
+  toast('⚠️ 구글 드라이브 연결이 만료됐어요\n설정 → 드라이브 재연결 필요');
+}
+
 // ── 드라이브 파일 업로드 헬퍼 ─────────────────────────
 async function driveUpload(name,blob,mime,parentId){
   const form=new FormData();
@@ -1272,14 +1285,16 @@ async function driveUpload(name,blob,mime,parentId){
   const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{
     method:'POST',headers:{Authorization:'Bearer '+dToken},body:form
   });
+  if(r.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
   return (await r.json()).id;
 }
 
 // ── 드라이브 파일 업데이트 헬퍼 ───────────────────────
 async function driveUpdate(fileId,blob,mime){
-  await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,{
+  const r=await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,{
     method:'PATCH',headers:{Authorization:'Bearer '+dToken,'Content-Type':mime},body:blob
   });
+  if(r.status===401){ handleDriveTokenExpiry(); throw new Error('token_expired'); }
 }
 
 // ── 게시글 1개 저장 ────────────────────────────────
@@ -1365,6 +1380,11 @@ async function savePostToDrive(post){
 // ── 전체 저장 ──────────────────────────────────────
 async function saveToDrive(silent=false){
   if(!dConnected||!dToken){ if(!silent) toast('드라이브 미연결 상태예요'); return; }
+  // 토큰 유효성 사전 체크
+  try{
+    const chk=await fetch('https://www.googleapis.com/oauth2/v1/tokeninfo?access_token='+dToken);
+    if(chk.status===400||chk.status===401){ handleDriveTokenExpiry(); return; }
+  }catch(e){ if(!silent) toast('네트워크 오류 😢'); return; }
   await ensureRootFolder();
   try{
     // 각 게시글 폴더에 저장
@@ -1605,7 +1625,7 @@ function renderCard(p){
     for(let i=0;i<show;i++){
       const m=media[i];
       mhtml+=`<div class="mi">${m.type==='video'
-        ?`<video src="${m.dataUrl}" muted playsinline preload="metadata" onloadedmetadata="try{this.currentTime=0.1}catch(e){}"></video><div class="vid-play-ov">▶</div>`
+        ?`<div class="vid-ph"><span class="vid-ph-icon">🎬</span><span class="vid-ph-txt">영상</span></div>`
         :`<img src="${m.dataUrl}" loading="lazy" alt="">`
       }</div>`;
     }
@@ -1797,14 +1817,10 @@ function renderMpg(){
   pendingMedia.forEach((m,i)=>{
     const t=document.createElement('div'); t.className='mthumb';
     if(m.type==='video'){
-      const v=document.createElement('video');
-      v.src=m.dataUrl; v.muted=true; v.playsInline=true; v.preload='metadata';
-      v.style.cssText='width:100%;height:100%;object-fit:cover;';
-      v.addEventListener('loadedmetadata',()=>{ try{v.currentTime=0.1;}catch(e){} });
-      const ov=document.createElement('div');
-      ov.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:1.4rem;pointer-events:none;text-shadow:0 1px 4px rgba(0,0,0,.7);';
-      ov.textContent='▶';
-      t.appendChild(v); t.appendChild(ov);
+      // iOS/Android 모두 <video> 썸네일 검게 나오는 문제 → 🎬 플레이스홀더 사용
+      const ph=document.createElement('div'); ph.className='vid-ph';
+      ph.innerHTML='<span class="vid-ph-icon">🎬</span><span class="vid-ph-txt">영상</span>';
+      t.appendChild(ph);
     } else {
       const img=document.createElement('img'); img.src=m.dataUrl; img.alt='';
       t.appendChild(img);
