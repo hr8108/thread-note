@@ -1022,7 +1022,7 @@ function saveLocal(skipDrive=false){
         return {type:m.type,name:m.name||'',dataUrl:m.dataUrl||'',thumb:m.thumb||null};
       });
       idbPut('pm_'+p.id, idbMedia);
-      return {...p, media:media.map(m=>({type:m.type,name:m.name||'',dataUrl:'__idb__',thumb:m.thumb||null}))};
+      return {...p, media:media.map(m=>({type:m.type,name:m.name||'',dataUrl:'__idb__'}))}; // thumb는 IDB에서 복원
     }
     return p;
   });
@@ -1152,7 +1152,7 @@ function updateDriveUI(){
   const sb =document.getElementById('gsub');
   if(!dot) return;
   const all=id=>Array.from(document.querySelectorAll('#'+id));
-  if(dConnected){
+  if(dConnected&&dToken){
     dot.style.background='#22c55e';
     if(st) st.textContent='연결됨 ✅';
     if(sb) sb.textContent=(dEmail||'구글 계정')+' → 📁 스레드노트 폴더에 저장';
@@ -1160,6 +1160,15 @@ function updateDriveUI(){
     all('gdrive-save-btn').forEach(b=>b.style.display='');
     all('gdrive-load-btn').forEach(b=>b.style.display='');
     all('gdrive-disconnect-btn').forEach(b=>b.style.display='');
+  } else if(dConnected&&!dToken){
+    // 토큰 만료 (재연결 필요)
+    dot.style.background='#f59e0b';
+    if(st) st.textContent='재연결 필요 ⚠️';
+    if(sb) sb.textContent='🔑 토큰 만료 → 아래 버튼으로 재연결하세요';
+    all('gdrive-connect-btn').forEach(b=>b.style.display='');
+    all('gdrive-save-btn').forEach(b=>b.style.display='none');
+    all('gdrive-load-btn').forEach(b=>b.style.display='none');
+    all('gdrive-disconnect-btn').forEach(b=>b.style.display='none');
   } else {
     dot.style.background='#555';
     if(st) st.textContent='연결 안 됨';
@@ -1351,11 +1360,12 @@ function b64toBlob(b64){
 
 // ── 토큰 만료 처리 ────────────────────────────────────
 function handleDriveTokenExpiry(){
-  dToken=null; dConnected=false;
+  dToken=null; dTokenExpiry=0;
   localStorage.removeItem('d_token');
-  localStorage.removeItem('d_ever');
+  localStorage.removeItem('d_expiry');
+  // d_ever 유지 → dConnected=true 유지, 재연결 버튼 바로 표시
   updateDriveUI();
-  toast('⚠️ 구글 드라이브 연결이 만료됐어요\n설정 → 드라이브 재연결 필요');
+  toast('🔑 드라이브 토큰 만료 → 설정에서 재연결해주세요');
 }
 
 const MULTIPART_LIMIT = 4*1024*1024;   // 4MB 이하: multipart
@@ -1576,14 +1586,18 @@ async function savePostToDrive(post){
 
 // ── 전체 저장 ──────────────────────────────────────
 async function saveToDrive(silent=false){
-  if(!dConnected||!dToken){ if(!silent) toast('드라이브 미연결 상태예요'); return; }
-  // 토큰 만료 시 자동갱신 시도
+  if(!dConnected){ if(!silent) toast('드라이브 미연결 상태예요'); return; }
+  if(!dToken){
+    if(!silent) toast('🔑 드라이브 재연결 필요 → 설정에서 연결해주세요');
+    return;
+  }
+  // 토큰 만료 처리
   if(isTokenExpired()){
-    const ok=await refreshTokenSilently();
-    if(!ok){
-      // 자동갱신 실패 → iOS PWA거나 GIS 없음 → 사용자에게 알림
-      handleDriveTokenExpiry();
-      return;
+    if(isIOS()&&isIOSPWA()){
+      // iOS PWA: 조용한 갱신 불가 → 토큰 있으면 그냥 시도 (401 오면 자연 처리)
+    } else {
+      const ok=await refreshTokenSilently();
+      if(!ok){ handleDriveTokenExpiry(); return; }
     }
   }
   await ensureRootFolder();
