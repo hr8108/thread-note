@@ -1059,6 +1059,10 @@ async function restoreMediaFromIDB(){
         if(m.blob instanceof Blob){
           return {type:'video',name:m.name||'',dataUrl:URL.createObjectURL(m.blob),blob:m.blob,thumb:m.thumb||null};
         }
+        // Drive 복구 영상: __drive__ 마커 유지 (열람 시 스트리밍)
+        if(m.dataUrl==='__drive__'||m.driveId){
+          return {type:'video',name:m.name||'',dataUrl:'__drive__',driveId:m.driveId||null,thumb:m.thumb||null};
+        }
         if(m.dataUrl&&m.dataUrl.startsWith('data:')&&_isIOS){
           try{
             const parts=m.dataUrl.split(',');
@@ -1740,31 +1744,30 @@ async function recoverFromDriveFolders(){
           }catch(e){ console.warn('내용.txt 파싱 실패',e); }
         }
 
-        // 4. 미디어 파일 – 하나씩 처리 후 즉시 IDB 저장 (메모리 절약)
+        // 4. 미디어 파일 처리
+        // 사진: base64 다운로드 → IDB 저장
+        // 영상: Drive ID만 저장 → 열람 시 스트리밍 (크기 제한 없음, 메모리 안전)
         const mediaFiles=files.filter(f=>f.name!=='내용.txt'&&f.mimeType!=='application/json');
         const idbMedia=[];
         for(const mf of mediaFiles){
           const isVid=mf.mimeType.startsWith('video/')||/\.(mp4|mov|m4v|avi|mkv|webm)$/i.test(mf.name);
-          const sizeMB=parseInt(mf.size||'0')/(1024*1024);
-          // 영상 20MB 초과 시 건너뜀 (모바일 메모리 보호)
-          if(isVid&&sizeMB>20){
-            toast(`⚠️ 대용량 영상 건너뜀 (${sizeMB.toFixed(0)}MB)`);
-            idbMedia.push({type:'video',name:mf.name,dataUrl:null,driveId:mf.id,thumb:null});
+          if(isVid){
+            // 영상: Drive ID 참조만 저장 (용량 무관, 스트리밍)
+            idbMedia.push({type:'video',name:mf.name,dataUrl:'__drive__',driveId:mf.id,thumb:null});
             postData.dMediaIds.push(mf.id);
-            continue;
+          } else {
+            // 사진: base64로 다운로드
+            try{
+              toast(`📥 사진 다운로드 중... (${fi+1}/${folders.length})`);
+              const mr=await fetch(`https://www.googleapis.com/drive/v3/files/${mf.id}?alt=media`,{headers:{Authorization:'Bearer '+dToken}});
+              if(!mr.ok){ console.warn('사진 다운로드 실패',mf.name,mr.status); continue; }
+              const blob=await mr.blob();
+              const b64=await new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=()=>res(null);r.readAsDataURL(blob);});
+              if(!b64){ continue; }
+              idbMedia.push({type:'image',name:mf.name,dataUrl:b64,thumb:null});
+              postData.dMediaIds.push(mf.id);
+            }catch(e){ console.warn('사진 처리 실패',mf.name,e); }
           }
-          try{
-            toast(`📥 사진/영상 다운로드 중... (${fi+1}/${folders.length})`);
-            const mr=await fetch(`https://www.googleapis.com/drive/v3/files/${mf.id}?alt=media`,{headers:{Authorization:'Bearer '+dToken}});
-            if(!mr.ok){ console.warn('미디어 다운로드 실패',mf.name,mr.status); continue; }
-            const blob=await mr.blob();
-            const b64=await new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=()=>res(null);r.readAsDataURL(blob);});
-            if(!b64){ continue; }
-            let thumb=null;
-            if(isVid){ try{ thumb=await captureVideoThumb(b64); }catch(e){} }
-            idbMedia.push({type:isVid?'video':'image',name:mf.name,dataUrl:b64,thumb});
-            postData.dMediaIds.push(mf.id);
-          }catch(e){ console.warn('미디어 처리 실패',mf.name,e); }
         }
 
         // 5. 이 포스트의 미디어를 IDB에 즉시 저장 (메모리 해제)
@@ -1807,6 +1810,34 @@ function disconnectDrive(){
   updateDriveUI(); toast('연결 해제됐어요');
 }
 
+
+// Drive 영상 온디맨드 로드 (복구된 영상 탭 시 호출)
+async function loadDriveVideo(postId, mediaIdx, driveId){
+  if(!dToken){ toast('드라이브 재연결 후 시도해주세요'); return; }
+  const el=document.getElementById(`drv-vid-${postId}-${mediaIdx}`);
+  if(el) el.innerHTML='<span style="color:#aaa;font-size:13px">⏳ 불러오는 중...</span>';
+  try{
+    toast('☁️ 영상 불러오는 중...');
+    const r=await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`,{headers:{Authorization:'Bearer '+dToken}});
+    if(!r.ok) throw new Error('drive_fetch_fail');
+    const blob=await r.blob();
+    const objUrl=URL.createObjectURL(blob);
+    // 상세 화면에 video 태그로 교체
+    if(el){
+      el.outerHTML=`<video src="${objUrl}" controls playsinline autoplay style="width:100%"></video>`;
+    }
+    // 메모리에 dataUrl 업데이트 (세션 중 재로드 방지)
+    const post=posts.find(x=>x.id===postId);
+    if(post&&post.media&&post.media[mediaIdx]){
+      post.media[mediaIdx].dataUrl=objUrl;
+      post.media[mediaIdx].blob=blob;
+    }
+    toast('✅ 영상 불러오기 완료!');
+  }catch(e){
+    if(el) el.innerHTML='<span style="color:#f87171;font-size:13px">❌ 불러오기 실패 (재연결 후 다시 탭)</span>';
+    toast('❌ 영상 불러오기 실패');
+  }
+}
 
 // ══ 테마 ════════════════════════════════════════════
 const THEMES={
@@ -1961,18 +1992,25 @@ function rankOf(id){
 function renderCard(p){
   const div=document.createElement('div');
   div.className='card';
-  // 유효한 dataUrl만 사용 (깨진 이미지 방지)
-  const media=(p.media||[]).filter(m=>m.dataUrl&&m.dataUrl!=='__idb__'&&(m.dataUrl.startsWith('data:')||m.dataUrl.startsWith('blob:')));
+  // 유효한 미디어만 필터 (사진: data:/blob:, 영상: data:/blob:/__drive__)
+  const media=(p.media||[]).filter(m=>{
+    if(!m.dataUrl||m.dataUrl==='__idb__') return false;
+    if(m.type==='video'&&m.dataUrl==='__drive__') return true; // Drive 스트리밍 영상
+    return m.dataUrl.startsWith('data:')||m.dataUrl.startsWith('blob:');
+  });
   let mhtml='';
   if(media.length>0){
     const show=Math.min(media.length,4);
     mhtml=`<div style="position:relative"><div class="card-images n${show}">`;
     for(let i=0;i<show;i++){
       const m=media[i];
+      const isDriveVid=m.type==='video'&&m.dataUrl==='__drive__';
       mhtml+=`<div class="mi">${m.type==='video'
         ?(m.thumb
           ?`<img src="${m.thumb}" loading="lazy" alt="영상"><div class="vid-play-ov">▶</div>`
-          :`<video src="${m.dataUrl}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none"></video><div class="vid-play-ov" style="pointer-events:none">▶</div>`)
+          :isDriveVid
+            ?`<div class="vid-ph" style="background:#1a1a2e"><span class="vid-ph-icon">☁️</span><span class="vid-ph-txt">탭하여 재생</span></div>`
+            :`<video src="${m.dataUrl}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none"></video><div class="vid-play-ov" style="pointer-events:none">▶</div>`)
         :`<img src="${m.dataUrl}" loading="lazy" alt="">`
       }</div>`;
     }
@@ -2357,9 +2395,22 @@ function deleteRepost(id,idx){
 function openDetail(id){
   const p=posts.find(x=>x.id===id); if(!p) return;
   curDetailId=id;
-  // 유효한 dataUrl만 표시 (깨진 이미지 방지)
-  const media=(p.media||[]).filter(m=>m.dataUrl&&m.dataUrl!=='__idb__'&&(m.dataUrl.startsWith('data:')||m.dataUrl.startsWith('blob:')));
-  const mhtml=media.length?`<div class="detail-media">${media.map(m=>m.type==='video'?`<video src="${m.dataUrl}" controls playsinline preload="metadata" onloadedmetadata="try{this.currentTime=0.1}catch(e){}" style="width:100%"></video>`:`<img src="${m.dataUrl}" alt="">`).join('')}</div>`:'';
+  // 유효한 미디어 필터 (__drive__ 영상 포함)
+  const media=(p.media||[]).filter(m=>{
+    if(!m.dataUrl||m.dataUrl==='__idb__') return false;
+    if(m.type==='video'&&m.dataUrl==='__drive__') return true;
+    return m.dataUrl.startsWith('data:')||m.dataUrl.startsWith('blob:');
+  });
+  // __drive__ 영상은 버튼으로 로드
+  const mhtml=media.length?`<div class="detail-media">${media.map((m,mi)=>{
+    if(m.type==='video'){
+      if(m.dataUrl==='__drive__'&&m.driveId){
+        return `<div id="drv-vid-${id}-${mi}" style="width:100%;background:#111;border-radius:10px;min-height:120px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;cursor:pointer" onclick="loadDriveVideo('${id}',${mi},'${m.driveId}')"><span style="font-size:36px">☁️▶</span><span style="color:#aaa;font-size:13px">탭하여 영상 불러오기</span></div>`;
+      }
+      return `<video src="${m.dataUrl}" controls playsinline preload="metadata" onloadedmetadata="try{this.currentTime=0.1}catch(e){}" style="width:100%"></video>`;
+    }
+    return `<img src="${m.dataUrl}" alt="" style="width:100%">`;
+  }).join('')}</div>`:'';
   const rank=rankOf(id);
   const rs=rank===1?'🥇 1위':rank===2?'🥈 2위':rank===3?'🥉 3위':rank?`✨ #${rank}위`:'';
   document.getElementById('detail-content').innerHTML=`
