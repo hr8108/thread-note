@@ -2230,7 +2230,7 @@ function closeWrite(){ document.getElementById('write-modal').classList.remove('
 document.getElementById('write-x').addEventListener('click',closeWrite);
 document.getElementById('write-cancel').addEventListener('click',closeWrite);
 document.getElementById('write-modal').addEventListener('click',function(e){ if(e.target===this) closeWrite(); });
-document.getElementById('write-save').addEventListener('click',()=>{
+document.getElementById('write-save').addEventListener('click',async()=>{
   const text=document.getElementById('f-text').value.trim();
   const link=document.getElementById('f-link').value.trim();
   if(!text&&!link&&!pendingMedia.length){ toast('내용을 입력해주세요 🙏'); return; }
