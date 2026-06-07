@@ -1,5 +1,5 @@
 // 버전 바꾸면 자동으로 모든 사용자에게 업데이트됨
-const CACHE = 'threadnote-v33';
+const CACHE = 'threadnote-v34';
 const ASSETS = ['/thread-note/', '/thread-note/index.html', '/thread-note/manifest.json'];
 
 self.addEventListener('install', e => {
