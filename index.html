@@ -1132,8 +1132,8 @@ function isTokenExpired(){
 
 // 자동 토큰 갱신 시도 (팝업 없이)
 async function refreshTokenSilently(){
-  // iOS PWA는 팝업 불가 → 조용한 갱신 불가
-  if(isIOS()&&isIOSPWA()) return false;
+  // iOS(PWA/브라우저 모두)는 팝업 불가 → 조용한 갱신 불가
+  if(isIOS()) return false;
   if(typeof google==='undefined'||!google.accounts) return false;
   initTokenClient();
   if(!dTokenClient) return false;
@@ -1603,8 +1603,8 @@ async function saveToDrive(silent=false){
   }
   // 토큰 만료 처리
   if(isTokenExpired()){
-    if(isIOS()&&isIOSPWA()){
-      // iOS PWA: 조용한 갱신 불가 → 토큰 있으면 그냥 시도 (401 오면 자연 처리)
+    if(isIOS()){
+      // iOS(PWA/Safari): 조용한 갱신 불가 → 토큰 있으면 그냥 시도 (401 오면 자연 처리)
     } else {
       const ok=await refreshTokenSilently();
       if(!ok){ handleDriveTokenExpiry(); return; }
@@ -1708,21 +1708,24 @@ async function recoverFromDriveFolders(){
     for(let fi=0;fi<folders.length;fi++){
       const folder=folders[fi];
       if(existingFolderIds.has(folder.id)){
-        // 이미 글은 있음 → 미디어가 없는지 확인
+        // 이미 글은 있음 → 현재 표시 가능한 미디어가 있는지 확인
         const existPost=posts.find(p=>p.dFolderId===folder.id);
-        const hasMedia=existPost&&(existPost.media||[]).some(m=>m.dataUrl&&m.dataUrl!=='__idb__'||m.dataUrl==='__idb__');
-        // IDB에 실제 데이터 있는지 확인
-        const idbData=existPost?await idbGet('pm_'+existPost.id):null;
-        const hasRealMedia=idbData&&idbData.length>0;
-        if(hasRealMedia){ skippedCount++; continue; }
-        // 미디어 없음 → 미디어만 복구 (글은 그대로 유지)
         if(!existPost){ skippedCount++; continue; }
+        // 현재 posts에 실제 보이는 미디어가 있으면 건너뜀
+        const hasVisibleMedia=(existPost.media||[]).some(m=>
+          m.dataUrl&&m.dataUrl!=='__idb__'&&(
+            m.dataUrl==='__drive__'||m.dataUrl.startsWith('data:')||m.dataUrl.startsWith('blob:')
+          )
+        );
+        if(hasVisibleMedia){ skippedCount++; continue; }
+        // 미디어 없음 → 드라이브에서 미디어만 복구 (글은 그대로 유지)
         toast(`📥 미디어 복구 중 ${fi+1}/${folders.length}: ${folder.name}`);
         try{
           const fq2=encodeURIComponent(`'${folder.id}' in parents and trashed=false`);
           const lr2=await fetch(`https://www.googleapis.com/drive/v3/files?q=${fq2}&fields=files(id,name,mimeType,size)&pageSize=50`,{headers:{Authorization:'Bearer '+dToken}});
           const ld2=await lr2.json();
           const files2=(ld2.files||[]).filter(f=>f.name!=='내용.txt'&&f.mimeType!=='application/json');
+          if(files2.length===0){ skippedCount++; continue; }
           const idbMedia2=[];
           for(const mf of files2){
             const isVid=mf.mimeType.startsWith('video/')||/\.(mp4|mov|m4v|avi|mkv|webm)$/i.test(mf.name);
@@ -1730,8 +1733,9 @@ async function recoverFromDriveFolders(){
               idbMedia2.push({type:'video',name:mf.name,dataUrl:'__drive__',driveId:mf.id,thumb:null});
             } else {
               try{
+                toast(`📥 사진 다운로드 중... (${fi+1}/${folders.length})`);
                 const mr2=await fetch(`https://www.googleapis.com/drive/v3/files/${mf.id}?alt=media`,{headers:{Authorization:'Bearer '+dToken}});
-                if(!mr2.ok){ continue; }
+                if(!mr2.ok){ console.warn('사진 다운로드 실패',mf.name,mr2.status); continue; }
                 const blob2=await mr2.blob();
                 const b64=await new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=()=>res(null);r.readAsDataURL(blob2);});
                 if(!b64){ continue; }
