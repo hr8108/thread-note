@@ -1703,11 +1703,57 @@ async function recoverFromDriveFolders(){
     if(!confirm(`드라이브에서 폴더 ${folders.length}개 발견!\n전체 복구하면 현재 데이터와 합쳐집니다.\n계속할까요?`)) return;
 
     const existingFolderIds=new Set(posts.map(p=>p.dFolderId).filter(Boolean));
-    let addedCount=0, skippedCount=0;
+    let addedCount=0, skippedCount=0, mediaOnlyCount=0;
 
     for(let fi=0;fi<folders.length;fi++){
       const folder=folders[fi];
-      if(existingFolderIds.has(folder.id)){ skippedCount++; continue; }
+      if(existingFolderIds.has(folder.id)){
+        // 이미 글은 있음 → 미디어가 없는지 확인
+        const existPost=posts.find(p=>p.dFolderId===folder.id);
+        const hasMedia=existPost&&(existPost.media||[]).some(m=>m.dataUrl&&m.dataUrl!=='__idb__'||m.dataUrl==='__idb__');
+        // IDB에 실제 데이터 있는지 확인
+        const idbData=existPost?await idbGet('pm_'+existPost.id):null;
+        const hasRealMedia=idbData&&idbData.length>0;
+        if(hasRealMedia){ skippedCount++; continue; }
+        // 미디어 없음 → 미디어만 복구 (글은 그대로 유지)
+        if(!existPost){ skippedCount++; continue; }
+        toast(`📥 미디어 복구 중 ${fi+1}/${folders.length}: ${folder.name}`);
+        try{
+          const fq2=encodeURIComponent(`'${folder.id}' in parents and trashed=false`);
+          const lr2=await fetch(`https://www.googleapis.com/drive/v3/files?q=${fq2}&fields=files(id,name,mimeType,size)&pageSize=50`,{headers:{Authorization:'Bearer '+dToken}});
+          const ld2=await lr2.json();
+          const files2=(ld2.files||[]).filter(f=>f.name!=='내용.txt'&&f.mimeType!=='application/json');
+          const idbMedia2=[];
+          for(const mf of files2){
+            const isVid=mf.mimeType.startsWith('video/')||/\.(mp4|mov|m4v|avi|mkv|webm)$/i.test(mf.name);
+            if(isVid){
+              idbMedia2.push({type:'video',name:mf.name,dataUrl:'__drive__',driveId:mf.id,thumb:null});
+            } else {
+              try{
+                const mr2=await fetch(`https://www.googleapis.com/drive/v3/files/${mf.id}?alt=media`,{headers:{Authorization:'Bearer '+dToken}});
+                if(!mr2.ok){ continue; }
+                const blob2=await mr2.blob();
+                const b64=await new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=()=>res(null);r.readAsDataURL(blob2);});
+                if(!b64){ continue; }
+                idbMedia2.push({type:'image',name:mf.name,dataUrl:b64,thumb:null});
+              }catch(e){ console.warn('미디어 복구 실패',mf.name,e); }
+            }
+          }
+          if(idbMedia2.length>0){
+            await idbPut('pm_'+existPost.id, idbMedia2);
+            existPost.media=idbMedia2.map(m=>({type:m.type,name:m.name||'',dataUrl:'__idb__'}));
+            localStorage.setItem('tn3_posts',JSON.stringify(
+              posts.map(p=>{
+                const med=(p.media||[]);
+                const hasData=med.some(m=>m.dataUrl&&m.dataUrl!=='__idb__'&&m.dataUrl.length>200);
+                return hasData?{...p,media:med.map(m=>({type:m.type,name:m.name||'',dataUrl:'__idb__'}))}:p;
+              })
+            ));
+            mediaOnlyCount++;
+          } else { skippedCount++; }
+        }catch(e){ console.warn('미디어 전용 복구 실패',folder.name,e); skippedCount++; }
+        continue;
+      }
       toast(`📂 복구 중 ${fi+1}/${folders.length}: ${folder.name}`);
       try{
         // 2. 폴더 내 파일 목록 (size 포함)
@@ -1789,12 +1835,16 @@ async function recoverFromDriveFolders(){
       }catch(e){ console.warn('폴더 복구 실패',folder.name,e); }
     }
 
-    if(!addedCount){ toast(`복구된 새 글이 없어요 (${skippedCount}개 이미 존재)`); return; }
+    if(!addedCount&&!mediaOnlyCount){ toast(`복구된 새 글이 없어요 (${skippedCount}개 이미 존재)`); return; }
 
     // 7. IDB에서 미디어 복원 후 화면 갱신
     await restoreMediaFromIDB();
     refresh();
-    toast(`✅ ${addedCount}개 복구 완료!${skippedCount?` (${skippedCount}개 중복 제외)`:''}  사진/영상도 포함됐어요 🎉`);
+    const msg=[];
+    if(addedCount) msg.push(`새 글 ${addedCount}개`);
+    if(mediaOnlyCount) msg.push(`사진/영상 ${mediaOnlyCount}개 글에 복구`);
+    if(skippedCount) msg.push(`${skippedCount}개 중복 제외`);
+    toast(`✅ 복구 완료! ${msg.join(', ')} 🎉`);
   }catch(e){ console.error('복구 실패',e); toast('복구 실패 😢 다시 시도해주세요'); }
 }
 
