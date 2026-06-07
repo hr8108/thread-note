@@ -1625,8 +1625,19 @@ async function loadFromDrive(){
   if(!dConnected||!dToken){ toast('드라이브 미연결 상태예요'); return; }
   await ensureRootFolder();
   try{
-    const indexId=localStorage.getItem('d_index');
-    if(!indexId){ toast('드라이브에 저장된 파일이 없어요'); return; }
+    // d_index 없으면 Drive에서 index.json 직접 검색
+    let indexId=localStorage.getItem('d_index')||null;
+    if(!indexId){
+      toast('🔍 드라이브에서 index.json 검색 중...');
+      const q=encodeURIComponent(`name='${D_INDEX}' and '${dRootId}' in parents and trashed=false`);
+      const sr=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`,{headers:{Authorization:'Bearer '+dToken}});
+      const sd=await sr.json();
+      if(sd.files&&sd.files.length>0){
+        indexId=sd.files[0].id;
+        localStorage.setItem('d_index',indexId);
+      }
+    }
+    if(!indexId){ toast('드라이브에 저장된 파일이 없어요 (index.json 없음)'); return; }
     const r=await fetch(`https://www.googleapis.com/drive/v3/files/${indexId}?alt=media`,{headers:{Authorization:'Bearer '+dToken}});
     const d=await r.json();
     if(!d.posts) throw 0;
