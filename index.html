@@ -1008,9 +1008,9 @@ function idbGetAll(){
 }
 
 // ══ 로컬 저장 ══════════════════════════════════════
-// posts 저장: 미디어 dataUrl → IDB, 나머지 → localStorage
-// skipDrive=true이면 드라이브 자동저장 스케줄 안 함 (saveToDrive 내부 호출 시 무한루프 방지)
-function saveLocal(skipDrive=false){
+// IDB 쓰기 완료 후 localStorage 업데이트 (race condition 방지)
+async function saveLocal(skipDrive=false){
+  const idbPromises=[];
   const slim=posts.map(p=>{
     const media=p.media||[];
     const needsIdb=media.some(m=>
@@ -1023,11 +1023,13 @@ function saveLocal(skipDrive=false){
           return {type:'video',name:m.name||'',blob:m.blob,thumb:m.thumb||null};
         return {type:m.type,name:m.name||'',dataUrl:m.dataUrl||'',thumb:m.thumb||null};
       });
-      idbPut('pm_'+p.id, idbMedia);
+      idbPromises.push(idbPut('pm_'+p.id, idbMedia)); // 병렬 IDB 쓰기
       return {...p, media:media.map(m=>({type:m.type,name:m.name||'',dataUrl:'__idb__'}))}; // thumb는 IDB에서 복원
     }
     return p;
   });
+  // IDB 쓰기 전부 완료 후 localStorage 저장 (순서 보장)
+  await Promise.all(idbPromises);
   try{
     localStorage.setItem('tn3_posts',JSON.stringify(slim));
     localStorage.setItem('tn3_cats',JSON.stringify(categories));
@@ -1739,7 +1741,9 @@ async function recoverFromDriveFolders(){
             const blob=await mr.blob();
             const b64=await new Promise(res=>{const fr2=new FileReader();fr2.onload=e=>res(e.target.result);fr2.readAsDataURL(blob);});
             const isVid=mf.mimeType.startsWith('video/')||/\.(mp4|mov|m4v|avi|mkv|webm)$/i.test(mf.name);
-            postData.media.push({type:isVid?'video':'image',name:mf.name,dataUrl:b64});
+            let thumb=null;
+            if(isVid){ try{ thumb=await captureVideoThumb(b64); }catch(e){} }
+            postData.media.push({type:isVid?'video':'image',name:mf.name,dataUrl:b64,thumb});
             dMediaIds.push(mf.id);
           }catch(e){ console.warn('미디어 다운로드 실패',mf.name,e); }
         }
@@ -1754,7 +1758,7 @@ async function recoverFromDriveFolders(){
     const existingFolderIds=new Set(posts.map(p=>p.dFolderId).filter(Boolean));
     const newPosts=recovered.filter(p=>!existingFolderIds.has(p.dFolderId));
     posts=[...newPosts,...posts];
-    saveLocal(); refresh();
+    await saveLocal(); refresh();
     toast(`✅ ${newPosts.length}개 복구 완료! (기존 ${recovered.length-newPosts.length}개 중복 제외)`);
   }catch(e){ console.error('복구 실패',e); toast('복구 실패 😢 다시 시도해주세요'); }
 }
@@ -1936,7 +1940,7 @@ function renderCard(p){
       mhtml+=`<div class="mi">${m.type==='video'
         ?(m.thumb
           ?`<img src="${m.thumb}" loading="lazy" alt="영상"><div class="vid-play-ov">▶</div>`
-          :`<div class="vid-ph"><span class="vid-ph-icon">🎬</span><span class="vid-ph-txt">영상</span></div>`)
+          :`<video src="${m.dataUrl}" muted playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none"></video><div class="vid-play-ov" style="pointer-events:none">▶</div>`)
         :`<img src="${m.dataUrl}" loading="lazy" alt="">`
       }</div>`;
     }
@@ -2218,7 +2222,7 @@ function captureVideoThumb(src){
     };
     v.addEventListener('seeked',draw,{once:true});
     v.addEventListener('error',()=>{ clearTimeout(timer); cleanup(); res(null); },{once:true});
-    v.addEventListener('loadeddata',()=>{ try{ v.currentTime=0.5; }catch(e){ draw(); } },{once:true});
+    v.addEventListener('loadeddata',()=>{ try{ v.currentTime=1.5; }catch(e){ draw(); } },{once:true}); // 1.5초: 검은 첫프레임 방지
     v.load();
   });
 }
@@ -2245,7 +2249,7 @@ document.getElementById('write-save').addEventListener('click',()=>{
       drafts.push({id:Date.now().toString(), date:new Date().toISOString(), ...data});
     }
     saveBtn._draftMode=false; curDraftId=null;
-    saveLocal(); closeWrite(); renderDrafts(); toast('📦 보관함에 저장됐어요!');
+    await saveLocal(); closeWrite(); renderDrafts(); toast('📦 보관함에 저장됐어요!');
     return;
   }
 
@@ -2255,10 +2259,10 @@ document.getElementById('write-save').addEventListener('click',()=>{
     if(editingId){
       const idx=posts.findIndex(p=>p.id===editingId);
       if(idx!==-1) posts[idx]={...posts[idx],...data};
-      saveLocal(); closeWrite(); refresh(); toast('수정 완료! ✅');
+      await saveLocal(); closeWrite(); refresh(); toast('수정 완료! ✅');
     } else {
       posts.unshift({id:Date.now().toString(),date:new Date().toISOString(),...data});
-      saveLocal(); closeWrite();
+      await saveLocal(); closeWrite();
       switchScreen('home');
       toast('저장 완료! 🎉');
     }
@@ -2350,11 +2354,11 @@ document.getElementById('detail-edit').addEventListener('click',()=>{
   const p=posts.find(x=>x.id===curDetailId);
   if(p) setTimeout(()=>openWrite(p),200);
 });
-document.getElementById('detail-delete').addEventListener('click',()=>{
+document.getElementById('detail-delete').addEventListener('click',async()=>{
   if(!confirm('이 게시글을 삭제할까요? 🗑️')) return;
   idbDel('pm_'+curDetailId); // IDB 미디어도 삭제
   posts=posts.filter(p=>p.id!==curDetailId);
-  saveLocal(); document.getElementById('detail-modal').classList.remove('open'); refresh(); toast('삭제됐어요 🌸');
+  await saveLocal(); document.getElementById('detail-modal').classList.remove('open'); refresh(); toast('삭제됐어요 🌸');
 });
 
 // ══ FAB / 네비 ═════════════════════════════════════
