@@ -1684,6 +1684,7 @@ async function loadFromDrive(){
 }
 
 // ── Drive 폴더 전체 스캔 복구 ──────────────────────────
+// 메모리 절약: 포스트 하나씩 IDB 저장 후 즉시 해제
 async function recoverFromDriveFolders(){
   if(!dConnected||!dToken){ toast('드라이브 미연결 상태예요'); return; }
   await ensureRootFolder();
@@ -1697,69 +1698,100 @@ async function recoverFromDriveFolders(){
     if(!folders.length){ toast('복구할 폴더가 없어요'); return; }
     if(!confirm(`드라이브에서 폴더 ${folders.length}개 발견!\n전체 복구하면 현재 데이터와 합쳐집니다.\n계속할까요?`)) return;
 
-    const recovered=[];
-    for(const folder of folders){
+    const existingFolderIds=new Set(posts.map(p=>p.dFolderId).filter(Boolean));
+    let addedCount=0, skippedCount=0;
+
+    for(let fi=0;fi<folders.length;fi++){
+      const folder=folders[fi];
+      if(existingFolderIds.has(folder.id)){ skippedCount++; continue; }
+      toast(`📂 복구 중 ${fi+1}/${folders.length}: ${folder.name}`);
       try{
-        // 2. 폴더 내 파일 목록
+        // 2. 폴더 내 파일 목록 (size 포함)
         const fq=encodeURIComponent(`'${folder.id}' in parents and trashed=false`);
-        const lr=await fetch(`https://www.googleapis.com/drive/v3/files?q=${fq}&fields=files(id,name,mimeType)&pageSize=50`,{headers:{Authorization:'Bearer '+dToken}});
+        const lr=await fetch(`https://www.googleapis.com/drive/v3/files?q=${fq}&fields=files(id,name,mimeType,size)&pageSize=50`,{headers:{Authorization:'Bearer '+dToken}});
         const ld=await lr.json();
         const files=ld.files||[];
 
         // 3. 내용.txt 파싱
         const txtFile=files.find(f=>f.name==='내용.txt');
-        let postData={id:'dr_'+folder.id, date:Date.now(), platform:'인스타', category:'기타',
-                      text:'', link:'', views:0, comment:'', postDate:'', dFolderId:folder.id, media:[]};
+        const postId='dr_'+folder.id;
+        let postData={id:postId, date:Date.now(), platform:'인스타', category:'기타',
+                      text:'', link:'', views:0, comment:'', postDate:'', dFolderId:folder.id,
+                      media:[], dMediaIds:[]};
         if(txtFile){
-          const tr=await fetch(`https://www.googleapis.com/drive/v3/files/${txtFile.id}?alt=media`,{headers:{Authorization:'Bearer '+dToken}});
-          const txt=await tr.text();
-          const lines=txt.split('\n');
-          for(const line of lines){
-            if(line.startsWith('📅 게시일: ')) postData.postDate=line.replace('📅 게시일: ','').trim().replace('없음','');
-            else if(line.startsWith('📌 플랫폼: ')) postData.platform=line.replace('📌 플랫폼: ','').trim();
-            else if(line.startsWith('🏷️ 카테고리: ')) postData.category=line.replace('🏷️ 카테고리: ','').trim();
-            else if(line.startsWith('👁️ 조회수: ')) postData.views=parseInt(line.replace('👁️ 조회수: ',''))||0;
-            else if(line.startsWith('🔗 링크: ')) postData.link=line.replace('🔗 링크: ','').replace('없음','').trim();
-          }
-          // 내용 추출 (📝 내용: 이후)
-          const ci=lines.findIndex(l=>l.startsWith('📝 내용:'));
-          if(ci>=0){
-            const commentIdx=lines.findIndex((l,i)=>i>ci&&l.startsWith('💬 내 댓글:'));
-            const end=commentIdx>0?commentIdx:lines.length;
-            postData.text=lines.slice(ci+1,end).join('\n').trim();
-            if(commentIdx>0) postData.comment=lines.slice(commentIdx+1).join('\n').trim();
-          }
+          try{
+            const tr=await fetch(`https://www.googleapis.com/drive/v3/files/${txtFile.id}?alt=media`,{headers:{Authorization:'Bearer '+dToken}});
+            const txt=await tr.text();
+            const lines=txt.split('\n');
+            for(const line of lines){
+              if(line.startsWith('📅 게시일: ')) postData.postDate=line.replace('📅 게시일: ','').trim().replace('없음','');
+              else if(line.startsWith('📌 플랫폼: ')) postData.platform=line.replace('📌 플랫폼: ','').trim();
+              else if(line.startsWith('🏷️ 카테고리: ')) postData.category=line.replace('🏷️ 카테고리: ','').trim();
+              else if(line.startsWith('👁️ 조회수: ')) postData.views=parseInt(line.replace('👁️ 조회수: ',''))||0;
+              else if(line.startsWith('🔗 링크: ')) postData.link=line.replace('🔗 링크: ','').replace('없음','').trim();
+            }
+            const ci=lines.findIndex(l=>l.startsWith('📝 내용:'));
+            if(ci>=0){
+              const commentIdx=lines.findIndex((l,i)=>i>ci&&l.startsWith('💬 내 댓글:'));
+              const end=commentIdx>0?commentIdx:lines.length;
+              postData.text=lines.slice(ci+1,end).join('\n').trim();
+              if(commentIdx>0) postData.comment=lines.slice(commentIdx+1).join('\n').trim();
+            }
+          }catch(e){ console.warn('내용.txt 파싱 실패',e); }
         }
 
-        // 4. 미디어 파일 다운로드
+        // 4. 미디어 파일 – 하나씩 처리 후 즉시 IDB 저장 (메모리 절약)
         const mediaFiles=files.filter(f=>f.name!=='내용.txt'&&f.mimeType!=='application/json');
-        const dMediaIds=[];
+        const idbMedia=[];
         for(const mf of mediaFiles){
+          const isVid=mf.mimeType.startsWith('video/')||/\.(mp4|mov|m4v|avi|mkv|webm)$/i.test(mf.name);
+          const sizeMB=parseInt(mf.size||'0')/(1024*1024);
+          // 영상 20MB 초과 시 건너뜀 (모바일 메모리 보호)
+          if(isVid&&sizeMB>20){
+            toast(`⚠️ 대용량 영상 건너뜀 (${sizeMB.toFixed(0)}MB)`);
+            idbMedia.push({type:'video',name:mf.name,dataUrl:null,driveId:mf.id,thumb:null});
+            postData.dMediaIds.push(mf.id);
+            continue;
+          }
           try{
-            toast(`📥 ${folder.name} 미디어 다운로드 중...`);
+            toast(`📥 사진/영상 다운로드 중... (${fi+1}/${folders.length})`);
             const mr=await fetch(`https://www.googleapis.com/drive/v3/files/${mf.id}?alt=media`,{headers:{Authorization:'Bearer '+dToken}});
+            if(!mr.ok){ console.warn('미디어 다운로드 실패',mf.name,mr.status); continue; }
             const blob=await mr.blob();
-            const b64=await new Promise(res=>{const fr2=new FileReader();fr2.onload=e=>res(e.target.result);fr2.readAsDataURL(blob);});
-            const isVid=mf.mimeType.startsWith('video/')||/\.(mp4|mov|m4v|avi|mkv|webm)$/i.test(mf.name);
+            const b64=await new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=()=>res(null);r.readAsDataURL(blob);});
+            if(!b64){ continue; }
             let thumb=null;
             if(isVid){ try{ thumb=await captureVideoThumb(b64); }catch(e){} }
-            postData.media.push({type:isVid?'video':'image',name:mf.name,dataUrl:b64,thumb});
-            dMediaIds.push(mf.id);
-          }catch(e){ console.warn('미디어 다운로드 실패',mf.name,e); }
+            idbMedia.push({type:isVid?'video':'image',name:mf.name,dataUrl:b64,thumb});
+            postData.dMediaIds.push(mf.id);
+          }catch(e){ console.warn('미디어 처리 실패',mf.name,e); }
         }
-        postData.dMediaIds=dMediaIds;
-        recovered.push(postData);
+
+        // 5. 이 포스트의 미디어를 IDB에 즉시 저장 (메모리 해제)
+        if(idbMedia.length>0){
+          await idbPut('pm_'+postId, idbMedia);
+          postData.media=idbMedia.map(m=>({type:m.type,name:m.name||'',dataUrl:'__idb__'}));
+        }
+
+        // 6. posts에 즉시 추가 + localStorage 업데이트
+        posts.unshift(postData);
+        localStorage.setItem('tn3_posts',JSON.stringify(
+          posts.map(p=>{
+            const med=(p.media||[]);
+            const hasData=med.some(m=>m.dataUrl&&m.dataUrl!=='__idb__'&&m.dataUrl.length>200);
+            return hasData?{...p,media:med.map(m=>({type:m.type,name:m.name||'',dataUrl:'__idb__'}))}:p;
+          })
+        ));
+        addedCount++;
       }catch(e){ console.warn('폴더 복구 실패',folder.name,e); }
     }
 
-    if(!recovered.length){ toast('복구된 글이 없어요'); return; }
+    if(!addedCount){ toast(`복구된 새 글이 없어요 (${skippedCount}개 이미 존재)`); return; }
 
-    // 5. 기존 posts와 합치기 (dFolderId 중복 제거)
-    const existingFolderIds=new Set(posts.map(p=>p.dFolderId).filter(Boolean));
-    const newPosts=recovered.filter(p=>!existingFolderIds.has(p.dFolderId));
-    posts=[...newPosts,...posts];
-    await saveLocal(); refresh();
-    toast(`✅ ${newPosts.length}개 복구 완료! (기존 ${recovered.length-newPosts.length}개 중복 제외)`);
+    // 7. IDB에서 미디어 복원 후 화면 갱신
+    await restoreMediaFromIDB();
+    refresh();
+    toast(`✅ ${addedCount}개 복구 완료!${skippedCount?` (${skippedCount}개 중복 제외)`:''}  사진/영상도 포함됐어요 🎉`);
   }catch(e){ console.error('복구 실패',e); toast('복구 실패 😢 다시 시도해주세요'); }
 }
 
