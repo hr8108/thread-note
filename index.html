@@ -1533,12 +1533,23 @@ async function savePostToDrive(post){
     post.dTxtId=await driveUpload('내용.txt',txtBlob,'text/plain',folderId);
   }
 
-  // 사진·영상: IDB에서 최신 데이터 가져옴 (blob: URL, __idb__ 포함)
+  // 사진·영상 데이터 결정
+  // 1) 현재 세션: posts 메모리에 blob 객체 있음 → 그대로 사용 (IDB 불필요)
+  // 2) 앱 재시작 후: __idb__ 마커만 있음 → IDB에서 가져옴
   let resolvedMedia=post.media||[];
-  const needIdb=resolvedMedia.some(m=>!m.dataUrl||m.dataUrl==='__idb__'||m.dataUrl.startsWith('blob:'));
+  const needIdb=resolvedMedia.some(m=>m.dataUrl==='__idb__'||(!m.dataUrl&&!(m.blob instanceof Blob)));
   if(needIdb){
     const idbData=await idbGet('pm_'+post.id);
     if(idbData&&idbData.length>0) resolvedMedia=idbData;
+  }
+  // 개별 영상에 blob 없으면 IDB에서 보완 (안전장치)
+  for(let _i=0;_i<resolvedMedia.length;_i++){
+    const _m=resolvedMedia[_i];
+    if(_m.type==='video'&&!(_m.blob instanceof Blob)&&(!_m.dataUrl||_m.dataUrl.startsWith('blob:'))){
+      const idbFallback=await idbGet('pm_'+post.id);
+      if(idbFallback&&idbFallback[_i]&&idbFallback[_i].blob instanceof Blob)
+        resolvedMedia[_i]=idbFallback[_i];
+    }
   }
 
   const mediaIds=post.dMediaIds?[...post.dMediaIds]:[];
@@ -1559,8 +1570,8 @@ async function savePostToDrive(post){
     }
   }
 
-  // 업로드 실행 함수
-  const doUpload=async({i,uploadBlob,uploadMime,uploadFname})=>{
+  // 업로드 실행 함수 (사진용 - 에러 무시, 영상용 - 에러 전파)
+  const doUpload=async({i,uploadBlob,uploadMime,uploadFname,throwOnFail=false})=>{
     try{
       if(mediaIds[i]){
         try{ await driveUpdate(mediaIds[i],uploadBlob,uploadMime); }
@@ -1572,33 +1583,41 @@ async function savePostToDrive(post){
       }else{
         mediaIds[i]=await driveUpload(uploadFname,uploadBlob,uploadMime,folderId);
       }
-    }catch(e){ console.error('미디어 업로드 실패',i,e); }
+    }catch(e){
+      console.error('미디어 업로드 실패',i,e);
+      if(throwOnFail) throw e; // 영상은 에러 전파
+    }
   };
 
   // 2) 사진: 3개씩 병렬 업로드
   for(let b=0;b<photoUploads.length;b+=3)
     await Promise.all(photoUploads.slice(b,b+3).map(doUpload));
 
-  // 3) 영상: fetch(dataUrl)로 브라우저가 직접 변환 → 청크 업로드
-  //    (b64toBlob은 50MB 영상 = 170MB 메모리 + 5천만 루프 → 크래시)
+  // 3) 영상: File/Blob 직접 청크 업로드 (메모리 안전, 크기 제한 없음)
   for(const {i,m,uploadFname} of videoUploads){
     let uploadBlob=null, uploadMime='video/mp4';
     try{
       if(m.blob instanceof Blob){
-        // iOS: File 객체 직접 사용
         uploadBlob=m.blob;
         uploadMime=m.blob.type||'video/mp4';
       } else if(m.dataUrl&&m.dataUrl.startsWith('data:')){
-        // Android: data URL → Blob 변환 (XHR > fetch > b64 순서로 시도)
-        toast('📹 영상 업로드 준비 중...');
+        toast('📹 영상 변환 중...');
         uploadBlob=await dataUrlToBlobSafe(m.dataUrl);
-        uploadMime=uploadBlob.type||'video/mp4';
-      } else { continue; }
-      if(!uploadBlob||uploadBlob.size===0){ toast('❌ 영상 데이터 없음'); continue; }
-      toast('📹 영상 드라이브 업로드 중... (시간이 걸려요)');
-      await doUpload({i,uploadBlob,uploadMime,uploadFname});
-      toast('✅ 영상 업로드 완료!');
-    }catch(e){ console.error('영상 업로드 실패',i,e); toast('❌ 영상 업로드 실패: '+e.message); }
+        uploadMime=uploadBlob?.type||'video/mp4';
+      } else {
+        toast(`❌ 영상 데이터 없음 (${i+1}번째) - 재저장 필요`);
+        console.warn('영상 blob 없음, m=',JSON.stringify({type:m.type,name:m.name,hasBlob:!!(m.blob),dataUrl:m.dataUrl?.slice(0,30)}));
+        continue;
+      }
+      if(!uploadBlob||uploadBlob.size===0){ toast('❌ 영상이 비어있음 - 재선택 필요'); continue; }
+      const sizeMB=(uploadBlob.size/1024/1024).toFixed(1);
+      toast(`📹 영상 업로드 중... ${sizeMB}MB (잠시 기다려주세요)`);
+      await doUpload({i,uploadBlob,uploadMime,uploadFname,throwOnFail:true});
+      toast('✅ 영상 드라이브 저장 완료!');
+    }catch(e){
+      console.error('영상 업로드 실패',i,e);
+      toast('❌ 영상 업로드 실패 - 설정에서 드라이브 재연결 후 다시 저장해주세요');
+    }
   }
 
   post.dMediaIds=mediaIds;
