@@ -1015,6 +1015,7 @@ async function saveLocal(skipDrive=false){
     const media=p.media||[];
     const needsIdb=media.some(m=>
       (m.blob instanceof Blob) ||
+      (m.dataUrl&&m.dataUrl.startsWith('blob:')) || // blob: URL → 반드시 IDB에 저장 (페이지 재로딩 시 무효화)
       (m.dataUrl&&m.dataUrl.length>200&&!m.dataUrl.startsWith('__idb__'))
     );
     if(needsIdb){
@@ -1063,7 +1064,8 @@ async function restoreMediaFromIDB(){
         if(m.dataUrl==='__drive__'||m.driveId){
           return {type:'video',name:m.name||'',dataUrl:'__drive__',driveId:m.driveId||null,thumb:m.thumb||null};
         }
-        if(m.dataUrl&&m.dataUrl.startsWith('data:')&&_isIOS){
+        if(m.dataUrl&&m.dataUrl.startsWith('data:')){
+          // data: URL → Blob으로 변환하여 blob URL 생성 (iOS/Android 공통)
           try{
             const parts=m.dataUrl.split(',');
             const mime=(parts[0].match(/:(.*?);/)||[])[1]||'video/mp4';
@@ -1229,8 +1231,8 @@ function handleOAuthRedirect(){
 
 // ── 연결 ─────────────────────────────────────────
 function connectDrive(){
-  // iOS PWA 모드: 팝업 불가 → implicit flow redirect 사용
-  if(isIOS() && isIOSPWA()){
+  // iOS (PWA + Safari 브라우저 모두): 팝업 불안정 → redirect flow 사용
+  if(isIOS()){
     const redirectUri = encodeURIComponent(location.origin + location.pathname);
     const url = `https://accounts.google.com/o/oauth2/v2/auth`
       + `?client_id=${encodeURIComponent(D_CLIENT_ID)}`
@@ -1375,7 +1377,15 @@ function handleDriveTokenExpiry(){
   localStorage.removeItem('d_expiry');
   // d_ever 유지 → dConnected=true, 재연결 버튼 바로 표시
   updateDriveUI();
-  toast('🔑 드라이브 토큰 만료 → 설정에서 재연결해주세요');
+  showReconnectBanner();
+}
+function showReconnectBanner(){
+  if(document.getElementById('reconnect-banner')) return;
+  const b=document.createElement('div');
+  b.id='reconnect-banner';
+  b.style.cssText='position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:#f59e0b;color:#000;padding:12px 18px;border-radius:14px;z-index:9999;display:flex;align-items:center;gap:10px;box-shadow:0 4px 20px rgba(0,0,0,0.3);font-size:14px;font-weight:600;max-width:90vw';
+  b.innerHTML='🔑 드라이브 연결이 끊겼어요 <button onclick="connectDrive();document.getElementById(\'reconnect-banner\')?.remove()" style="background:#000;color:#fff;border:none;padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700">재연결</button><button onclick="this.parentElement.remove()" style="background:none;border:none;font-size:18px;cursor:pointer;padding:0 4px">✕</button>';
+  document.body.appendChild(b);
 }
 
 const MULTIPART_LIMIT = 4*1024*1024;   // 4MB 이하: multipart
@@ -1598,7 +1608,8 @@ async function savePostToDrive(post){
 async function saveToDrive(silent=false){
   if(!dConnected){ if(!silent) toast('드라이브 미연결 상태예요'); return; }
   if(!dToken){
-    if(!silent) toast('🔑 드라이브 재연결 필요 → 설정에서 연결해주세요');
+    if(!silent) toast('🔑 드라이브 재연결 필요');
+    showReconnectBanner();
     return;
   }
   // 토큰 만료 처리
@@ -2288,25 +2299,11 @@ document.getElementById('f-media').addEventListener('change',async function(){
   for(const f of Array.from(this.files)){
     const isVideo=f.type.startsWith('video')||/\.(mov|mp4|m4v|avi|mkv|webm|3gp|hevc)$/i.test(f.name||'');
     if(isVideo){
-      if(_isIOS){
-        // iOS: data URL 영상 재생 불가 → blob objectURL 사용
-        const objUrl=URL.createObjectURL(f);
-        const thumb=await captureVideoThumb(objUrl);
-        pendingMedia.push({type:'video',dataUrl:objUrl,blob:f,name:f.name||'영상',thumb});
-      } else {
-        // Android/PC: base64 변환 (정상 재생됨)
-        const du=await toDataUrl(f);
-        if(du){
-          const thumb=await captureVideoThumb(du);
-          pendingMedia.push({type:'video',dataUrl:du,name:f.name||'영상',thumb});
-        } else {
-          // base64 실패 시 blob fallback (대용량 영상 대비)
-          const objUrl=URL.createObjectURL(f);
-          const thumb=await captureVideoThumb(objUrl);
-          pendingMedia.push({type:'video',dataUrl:objUrl,blob:f,name:f.name||'영상',thumb});
-          toast('📹 영상 추가됨 (대용량)');
-        }
-      }
+      // iOS/Android 모두: File 객체 직접 저장 (base64 변환 없음 → OOM 방지)
+      // blob: URL로 미리보기, File 객체로 Drive 업로드 (메모리 안전)
+      const objUrl=URL.createObjectURL(f);
+      const thumb=await captureVideoThumb(objUrl);
+      pendingMedia.push({type:'video',dataUrl:objUrl,blob:f,name:f.name||'영상',thumb});
     } else {
       const du=await toDataUrl(f);
       if(du) pendingMedia.push({type:'image',dataUrl:du,name:f.name||'이미지'});
@@ -2809,6 +2806,17 @@ handleShare();
 loadMemoData();
 // IDB에서 미디어 복원 후 렌더 (사진이 있는 게시글 정상 표시)
 restoreMediaFromIDB().then(()=>{ renderHome(); }).catch(()=>{ renderHome(); });
+
+// IDB 영구 저장 요청 (브라우저 자동 삭제 방지)
+if(navigator.storage&&navigator.storage.persist){
+  navigator.storage.persist().then(granted=>{
+    if(!granted) console.warn('IDB 영구 저장 거부됨 - 브라우저가 공간 부족 시 삭제할 수 있음');
+  });
+}
+// 앱 시작 시 드라이브 토큰 만료 체크 → 배너 표시
+setTimeout(()=>{
+  if(dConnected&&!dToken) showReconnectBanner();
+}, 1500);
 
 // 구글 연결한 적 없고, 닫은 적도 없으면 2초 후 팝업
 setTimeout(()=>{
